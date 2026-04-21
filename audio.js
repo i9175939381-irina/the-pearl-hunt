@@ -4,7 +4,10 @@
  */
 class GameAudio {
   constructor() {
-    this._baseMaster = 0.46;
+    // _baseMaster — потолок общего уровня при 100% ползунка.
+    // Подняли с 0.46 → 0.78: эффекты звучат в несколько раз громче,
+    // но остаёмся заведомо ниже цифрового клиппинга.
+    this._baseMaster = 0.78;
     this._ctx = null;
     this.master = null;
     this.ambient = null;
@@ -12,7 +15,10 @@ class GameAudio {
     this._sharkGain = null;
     this._noiseSrc = null;
     this._ambFilter = null;
+    this._ambWet = null;
+    this._ambShimmer = null;
     this._lfo = null;
+    this._swellLfo = null;
     this._sharkOsc = null;
     this._bubbleAcc = 0;
     this._swimSplashAcc = 0;
@@ -92,34 +98,83 @@ class GameAudio {
   _startAmbientNoise() {
     const ctx = this._ctx;
     const rate = ctx.sampleRate;
-    const n = Math.floor(3 * rate);
+
+    // ── Базовый «корпус» океана: мягкий коричневатый шум ──
+    // Используем интегрированный белый шум (random walk → brown-like),
+    // чтобы убрать «шипение» и получить более низкочастотный, «глубокий» тон.
+    const n = Math.floor(4 * rate);
     const buf = ctx.createBuffer(1, n, rate);
     const d = buf.getChannelData(0);
-    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * 0.4;
+    let last = 0;
+    for (let i = 0; i < n; i++) {
+      const w = Math.random() * 2 - 1;
+      last = (last + 0.02 * w) * 0.995;
+      d[i] = Math.max(-1, Math.min(1, last * 3.5));
+    }
     const src = ctx.createBufferSource();
     src.buffer = buf;
     src.loop = true;
+
+    // Глубокий lowpass — «под водой». Частота дышит LFO.
     const lp = ctx.createBiquadFilter();
     lp.type = "lowpass";
-    lp.frequency.value = 560;
-    lp.Q.value = 0.6;
+    lp.frequency.value = 440;
+    lp.Q.value = 0.7;
+
+    // Громкость корпуса. Фоновый шум намеренно тише, чем раньше (0.11 → 0.06),
+    // чтобы он не забивал короткие SFX (пузыри, щелчки дельфина).
     const wet = ctx.createGain();
-    wet.gain.value = 0.11;
+    wet.gain.value = 0.06;
     src.connect(lp);
     lp.connect(wet);
     wet.connect(this.ambient);
     src.start();
     this._noiseSrc = src;
     this._ambFilter = lp;
+    this._ambWet = wet;
+
+    // ── Лёгкая «пена» сверху: отдельный шум с узким bandpass ~1.3 кГц.
+    // Очень тихо, но добавляет океанскую шипуче-пенистую текстуру.
+    const buf2 = ctx.createBuffer(1, n, rate);
+    const d2 = buf2.getChannelData(0);
+    for (let i = 0; i < n; i++) d2[i] = (Math.random() * 2 - 1) * 0.4;
+    const src2 = ctx.createBufferSource();
+    src2.buffer = buf2;
+    src2.loop = true;
+    const bp = ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 1350;
+    bp.Q.value = 0.9;
+    const foamGain = ctx.createGain();
+    foamGain.gain.value = 0.018;
+    src2.connect(bp);
+    bp.connect(foamGain);
+    foamGain.connect(this.ambient);
+    src2.start();
+    this._ambShimmer = foamGain;
+
+    // ── Волны: медленный LFO на частоту lowpass (0.09 Гц) + медленный
+    // амплитудный LFO на громкость «корпуса» (0.15 Гц). Даёт чувство
+    // прилива/отлива вместо ровного шипения.
     const lfo = ctx.createOscillator();
     lfo.type = "sine";
     lfo.frequency.value = 0.09;
     const lg = ctx.createGain();
-    lg.gain.value = 140;
+    lg.gain.value = 160;
     lfo.connect(lg);
     lg.connect(lp.frequency);
     lfo.start(0);
     this._lfo = lfo;
+
+    const swell = ctx.createOscillator();
+    swell.type = "sine";
+    swell.frequency.value = 0.15;
+    const sg = ctx.createGain();
+    sg.gain.value = 0.035;
+    swell.connect(sg);
+    sg.connect(wet.gain);
+    swell.start(0);
+    this._swellLfo = swell;
   }
 
   _startSharkDrone() {
@@ -219,8 +274,8 @@ class GameAudio {
     o.frequency.exponentialRampToValueAtTime(120, t0 + 0.12);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime((0.1 + Math.random() * 0.03) * this._fxMul.bubble, t0 + 0.012);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.14);
+    g.gain.exponentialRampToValueAtTime((0.26 + Math.random() * 0.06) * this._fxMul.bubble, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
     const bp = ctx.createBiquadFilter();
     bp.type = "bandpass";
     bp.frequency.value = 520;
@@ -229,8 +284,8 @@ class GameAudio {
     bp.connect(g);
     g.connect(this.sfx);
     o.start(t0);
-    o.stop(t0 + 0.16);
-    if (Math.random() < 0.8) this._playBubblePop(t0 + 0.055 + Math.random() * 0.05);
+    o.stop(t0 + 0.18);
+    if (Math.random() < 0.85) this._playBubblePop(t0 + 0.055 + Math.random() * 0.05);
   }
 
   _playBubblePop(t0) {
@@ -247,13 +302,13 @@ class GameAudio {
     hp.frequency.value = 1200 + Math.random() * 400;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime((0.075 + Math.random() * 0.02) * this._fxMul.pop, t0 + 0.004);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.045);
+    g.gain.exponentialRampToValueAtTime((0.2 + Math.random() * 0.05) * this._fxMul.pop, t0 + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.05);
     src.connect(hp);
     hp.connect(g);
     g.connect(this.sfx);
     src.start(t0);
-    src.stop(t0 + 0.05);
+    src.stop(t0 + 0.055);
   }
 
   playPearlChime() {
@@ -268,7 +323,7 @@ class GameAudio {
       const g = ctx.createGain();
       const del = i * 0.055;
       g.gain.setValueAtTime(0.0001, t0 + del);
-      g.gain.exponentialRampToValueAtTime(0.075 * this._fxMul.pearl, t0 + del + 0.04);
+      g.gain.exponentialRampToValueAtTime(0.14 * this._fxMul.pearl, t0 + del + 0.04);
       g.gain.exponentialRampToValueAtTime(0.0001, t0 + del + 1.8);
       o.connect(g);
       g.connect(this.sfx);
@@ -287,8 +342,8 @@ class GameAudio {
     o.frequency.exponentialRampToValueAtTime(320, t0 + 0.05);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(0.088 * this._fxMul.dolphin, t0 + 0.008);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.09);
+    g.gain.exponentialRampToValueAtTime(0.22 * this._fxMul.dolphin, t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.1);
     const bp = ctx.createBiquadFilter();
     bp.type = "bandpass";
     bp.frequency.value = 640;
@@ -309,8 +364,8 @@ class GameAudio {
     o.frequency.value = 990;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(0.056 * this._fxMul.pearl, t0 + 0.006);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.12 * this._fxMul.pearl, t0 + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.06);
     o.connect(g);
     g.connect(this.sfx);
     o.start(t0);
@@ -330,7 +385,7 @@ class GameAudio {
     lp.frequency.value = 220;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(0.06, t0 + 0.12);
+    g.gain.exponentialRampToValueAtTime(0.11, t0 + 0.12);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.0);
     o.connect(lp);
     lp.connect(g);
@@ -351,8 +406,8 @@ class GameAudio {
       const g = ctx.createGain();
       const t1 = t0 + i * 0.07;
       g.gain.setValueAtTime(0.0001, t1);
-      g.gain.exponentialRampToValueAtTime(0.04, t1 + 0.03);
-      g.gain.exponentialRampToValueAtTime(0.0001, t1 + 0.42);
+      g.gain.exponentialRampToValueAtTime(0.09, t1 + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, t1 + 0.44);
       o.connect(g);
       g.connect(this.sfx);
       o.start(t1);
@@ -372,7 +427,7 @@ class GameAudio {
       const g = ctx.createGain();
       const t1 = t0 + i * 0.09;
       g.gain.setValueAtTime(0.0001, t1);
-      g.gain.exponentialRampToValueAtTime(0.055, t1 + 0.04);
+      g.gain.exponentialRampToValueAtTime(0.11, t1 + 0.04);
       g.gain.exponentialRampToValueAtTime(0.0001, t1 + 1.0);
       o.connect(g);
       g.connect(this.sfx);
@@ -410,8 +465,8 @@ class GameAudio {
     bp.Q.value = 0.8;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime((0.065 + power * 0.05) * this._fxMul.splash, t0 + 0.004);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.06);
+    g.gain.exponentialRampToValueAtTime((0.15 + power * 0.11) * this._fxMul.splash, t0 + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.07);
     src.connect(bp);
     bp.connect(g);
     g.connect(this.sfx);
@@ -430,8 +485,8 @@ class GameAudio {
     o.frequency.exponentialRampToValueAtTime(310, t0 + 0.24);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(0.11 * this._fxMul.air, t0 + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.34);
+    g.gain.exponentialRampToValueAtTime(0.24 * this._fxMul.air, t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.36);
     const bp = ctx.createBiquadFilter();
     bp.type = "bandpass";
     bp.frequency.value = 380;
