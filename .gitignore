@@ -1,0 +1,17 @@
+# Системные / редакторские файлы
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+*.tmp
+*.log
+
+# Cursor / VSCode локальные настройки
+.vscode/
+.cursor/
+.idea/
+
+# Ноды / сборка — в этой игре не используется, но на всякий случай
+node_modules/
+dist/
+build/

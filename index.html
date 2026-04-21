@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title data-i18n="meta.title">Охота за жемчужинами</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Marck+Script&family=Caveat:wght@500;600&family=Great+Vibes&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <canvas id="game-canvas" aria-label="Игровое поле" data-i18n-attr="aria-label:meta.canvas"></canvas>
+
+  <div id="start-overlay" class="overlay overlay--start">
+    <div class="start-cover__scrim" aria-hidden="true"></div>
+
+    <div class="start-cover__top">
+      <h1 class="game-title" data-i18n="start.title">Охота за жемчужинами</h1>
+      <div class="start-intro">
+        <p data-i18n="start.rules.1">Погрузись в океан и собирай жемчужины,
+          следи за запасом воздуха — лови пузырьки, они продлевают дыхание.</p>
+        <p><span data-i18n="start.rules.2.before">Собери </span><b data-i18n="start.rules.2.bold">10 жемчужин</b><span data-i18n="start.rules.2.middle"> — и отправишься на поиски легендарной </span><span class="accent" data-i18n="start.rules.2.accent">Чёрной жемчужины</span><span data-i18n="start.rules.2.after">.</span></p>
+        <p class="start-keys">
+          <span data-i18n="start.keys.move">WASD / стрелки — движение</span>
+          <span data-i18n="start.keys.boost">Пробел — ускорение</span>
+          <span data-i18n="start.keys.pause">Esc — пауза</span>
+        </p>
+      </div>
+    </div>
+
+    <div class="start-cover__bottom">
+      <button type="button" id="btn-start" class="btn-primary btn-dive" data-i18n="start.button">Погрузиться</button>
+    </div>
+
+    <button type="button" id="btn-start-settings" class="cover-gear"
+      aria-label="Настройки" data-i18n-attr="aria-label:start.settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm8.94 4.3-.01-.3v-1l.01-.3 2-1.56a.5.5 0 0 0 .12-.63l-1.9-3.28a.5.5 0 0 0-.6-.22l-2.35.94a7.5 7.5 0 0 0-1.73-1l-.35-2.5A.5.5 0 0 0 15.6 2h-3.2a.5.5 0 0 0-.5.45l-.36 2.5a7.5 7.5 0 0 0-1.72 1l-2.35-.94a.5.5 0 0 0-.6.22l-1.9 3.28a.5.5 0 0 0 .12.63l2 1.56-.01.3v1l.01.3-2 1.56a.5.5 0 0 0-.12.63l1.9 3.28a.5.5 0 0 0 .6.22l2.35-.94c.53.41 1.11.75 1.72 1l.36 2.5a.5.5 0 0 0 .5.45h3.2a.5.5 0 0 0 .5-.45l.35-2.5c.61-.25 1.2-.59 1.73-1l2.35.94a.5.5 0 0 0 .6-.22l1.9-3.28a.5.5 0 0 0-.12-.63l-2-1.56z"/>
+      </svg>
+    </button>
+  </div>
+
+  <div id="settings-overlay" class="overlay overlay--settings" hidden>
+    <div class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <h2 id="settings-title" class="settings-panel__title" data-i18n="settings.title">Настрой игру под себя</h2>
+
+      <section class="settings-section">
+        <h3 class="settings-section__title" data-i18n="settings.section.sound">Звук</h3>
+        <label class="settings-row" for="settings-master-volume">
+          <span data-i18n="settings.volume">Громкость</span>
+          <input type="range" id="settings-master-volume" min="0" max="100" value="55"
+            aria-label="Громкость" data-i18n-attr="aria-label:settings.volume" />
+        </label>
+      </section>
+
+      <section class="settings-section">
+        <h3 class="settings-section__title" data-i18n="settings.section.language">Язык</h3>
+        <div class="settings-lang" role="group" aria-labelledby="settings-title">
+          <button type="button" class="settings-lang__btn" data-lang="ru" data-i18n="settings.lang.ru">Русский</button>
+          <button type="button" class="settings-lang__btn" data-lang="en" data-i18n="settings.lang.en">English</button>
+        </div>
+      </section>
+
+      <button type="button" id="btn-settings-close" class="btn-primary btn-settings-close"
+        data-i18n="settings.close" data-i18n-attr="aria-label:settings.close.aria">Закрыть</button>
+    </div>
+  </div>
+
+  <div id="stage-overlay" class="overlay overlay--panel" hidden>
+    <p class="panel-title" data-i18n="stage.offer.title">Ты готов нырнуть глубже?</p>
+    <div class="panel-actions">
+      <button type="button" id="btn-stage-next" class="btn-primary" data-i18n="stage.offer.next">Перейти дальше</button>
+      <button type="button" id="btn-stage-continue" class="btn-secondary" data-i18n="stage.offer.continue">Продолжить сбор</button>
+    </div>
+  </div>
+
+  <div id="win-overlay" class="overlay overlay--panel overlay--win" hidden>
+    <div id="win-epic" class="win-epic" hidden>
+      <p class="win-epic__line win-epic__line--1" data-i18n="win.epic.1">Ты прошёл путь глубины...</p>
+      <p class="win-epic__line win-epic__line--2" data-i18n="win.epic.2">Ты нашёл Чёрную жемчужину...</p>
+      <p class="win-epic__line win-epic__line--3" data-i18n="win.epic.3">Ты победитель.</p>
+    </div>
+    <div id="win-classic">
+      <p id="win-title" class="panel-title" data-i18n="win.classic.title">Отличный результат!</p>
+      <p id="win-line" class="panel-line">Ты собрал: <span id="win-pearls-count">0</span> жемчужин</p>
+    </div>
+    <div class="panel-actions panel-actions--stack">
+      <button type="button" id="btn-win-again" class="btn-primary" data-i18n="win.again">Играть снова</button>
+      <button type="button" id="btn-win-menu" class="btn-secondary" data-i18n="win.menu">В меню</button>
+    </div>
+  </div>
+
+  <div id="next-stage-overlay" class="overlay overlay--panel" hidden>
+    <p class="panel-title" data-i18n="nextStage.title">Глубокое погружение скоро...</p>
+    <button type="button" id="btn-next-back" class="btn-primary" data-i18n="nextStage.back">В меню</button>
+  </div>
+
+  <div id="shark-overlay" class="overlay overlay--shark" hidden>
+    <div class="shark-panel">
+      <p class="panel-title" data-i18n="shark.title">Появились акулы!</p>
+      <div class="panel-actions">
+        <button type="button" id="btn-shark-back" class="btn-secondary" data-i18n="shark.back">Вернуться назад</button>
+        <button type="button" id="btn-shark-hide" class="btn-primary" data-i18n="shark.hide">Спрятаться</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="shelter-overlay" class="overlay overlay--panel" hidden>
+    <p class="panel-title" data-i18n="shelter.title">Ты нашёл укрытие...</p>
+    <p class="panel-line" data-i18n="shelter.text">Скоро здесь будет продолжение истории.</p>
+    <div class="panel-actions">
+      <button type="button" id="btn-shelter-continue" class="btn-primary" data-i18n="shelter.continue">Продолжить</button>
+    </div>
+  </div>
+
+  <div id="cave-choice-overlay" class="overlay overlay--panel" hidden>
+    <p class="panel-title" data-i18n="caveChoice.title">Ты выбрался из пещеры...</p>
+    <p class="panel-line" data-i18n="caveChoice.open">Перед тобой открывается океан...</p>
+    <p class="panel-line" data-i18n="caveChoice.prompt">Что ты сделаешь дальше?</p>
+    <div class="panel-actions panel-actions--stack">
+      <button type="button" id="btn-cave-choice-pearls" class="btn-secondary" data-i18n="caveChoice.pearls">Собрать ещё 15 жемчужин</button>
+      <button type="button" id="btn-cave-choice-ship" class="btn-primary" data-i18n="caveChoice.ship">Найти затонувший корабль</button>
+    </div>
+  </div>
+
+  <div id="cave-chase-lose-overlay" class="overlay overlay--panel overlay--cave-lose" hidden>
+    <p class="panel-title cave-lose-line" data-i18n="caveLose.title">Ты не успел спрятаться...</p>
+    <p class="panel-line cave-lose-line" data-i18n="caveLose.line">Акулы оказались быстрее...</p>
+    <p class="panel-line cave-lose-line cave-lose-line--pearl" data-i18n="caveLose.pearl">Чёрная жемчужина всё ещё ждёт тебя в глубине...</p>
+    <div class="panel-actions panel-actions--stack">
+      <button type="button" id="btn-cave-try" class="btn-primary" data-i18n="caveLose.try">Попробовать ещё</button>
+      <button type="button" id="btn-cave-end" class="btn-secondary" data-i18n="caveLose.end">Закончить</button>
+    </div>
+  </div>
+
+  <div id="lose-overlay" class="overlay overlay--lose" hidden>
+    <p class="lose-line lose-line--title" data-i18n="lose.title">Воздух закончился...</p>
+    <p id="lose-pearls-line" class="lose-line">Ты собрал: <span id="lose-pearls-count">0</span> жемчужин</p>
+    <p id="lose-best-line" class="lose-line lose-line--best">Лучший результат: <span id="lose-best-count">0</span></p>
+    <button type="button" id="btn-lose-retry" class="btn-primary" data-i18n="lose.retry">Попробовать ещё</button>
+  </div>
+
+  <script src="settings.js"></script>
+  <script src="i18n.js"></script>
+  <script src="audio.js"></script>
+  <script src="game.js" defer></script>
+</body>
+</html>
