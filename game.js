@@ -5056,10 +5056,25 @@ class Game {
           sh.phase = 2;
           sh.phaseT = 0;
           sh.dolphinObserveT = 0;
+          sh._sfxDolphinAscendAcc = 0;
+          // Первый «кли-клик» на момент подхвата — чтобы было слышно,
+          // что дельфин забирает пловца.
+          if (this.audio && typeof this.audio.playDolphinClick === "function") {
+            this.audio.playDolphinClick();
+          }
         }
       } else if (sh.phase === 2) {
         sh.dolphinT += dt;
         sh.surfLight = Math.min(1, sh.surfLight + dt * 0.28);
+        // Периодические щелчки во время подъёма: дельфин в кадре рядом,
+        // сигналит. 1.1–2.0 сек между сигналами, как у настоящих дельфинов.
+        sh._sfxDolphinAscendAcc = (sh._sfxDolphinAscendAcc || 0) + dt;
+        if (sh._sfxDolphinAscendAcc >= 1.1 + Math.random() * 0.9) {
+          sh._sfxDolphinAscendAcc = 0;
+          if (this.audio && typeof this.audio.playDolphinClick === "function") {
+            this.audio.playDolphinClick();
+          }
+        }
         const up = 30 * dt;
         this.player.y = Math.max(this.player.halfH + 18, this.player.y - up);
         for (const bud of this._stageTwoBuddies) {

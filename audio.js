@@ -121,10 +121,10 @@ class GameAudio {
     lp.frequency.value = 440;
     lp.Q.value = 0.7;
 
-    // Громкость корпуса. Фоновый шум намеренно тише, чем раньше (0.11 → 0.06),
-    // чтобы он не забивал короткие SFX (пузыри, щелчки дельфина).
+    // Громкость корпуса. Фоновый шум намеренно очень тихий (0.11 → 0.045),
+    // чтобы он не звучал как «шипение», а читался как мягкая толща воды.
     const wet = ctx.createGain();
-    wet.gain.value = 0.06;
+    wet.gain.value = 0.045;
     src.connect(lp);
     lp.connect(wet);
     wet.connect(this.ambient);
@@ -133,25 +133,30 @@ class GameAudio {
     this._ambFilter = lp;
     this._ambWet = wet;
 
-    // ── Лёгкая «пена» сверху: отдельный шум с узким bandpass ~1.3 кГц.
-    // Очень тихо, но добавляет океанскую шипуче-пенистую текстуру.
+    // ── Подводный «гул»: дополнительный очень низкий слой (bandpass 90 Гц),
+    // даёт ощущение толщи воды, а не свиста.
     const buf2 = ctx.createBuffer(1, n, rate);
     const d2 = buf2.getChannelData(0);
-    for (let i = 0; i < n; i++) d2[i] = (Math.random() * 2 - 1) * 0.4;
+    let last2 = 0;
+    for (let i = 0; i < n; i++) {
+      const w = Math.random() * 2 - 1;
+      last2 = (last2 + 0.015 * w) * 0.997;
+      d2[i] = Math.max(-1, Math.min(1, last2 * 4));
+    }
     const src2 = ctx.createBufferSource();
     src2.buffer = buf2;
     src2.loop = true;
     const bp = ctx.createBiquadFilter();
     bp.type = "bandpass";
-    bp.frequency.value = 1350;
-    bp.Q.value = 0.9;
-    const foamGain = ctx.createGain();
-    foamGain.gain.value = 0.018;
+    bp.frequency.value = 110;
+    bp.Q.value = 0.8;
+    const humGain = ctx.createGain();
+    humGain.gain.value = 0.09;
     src2.connect(bp);
-    bp.connect(foamGain);
-    foamGain.connect(this.ambient);
+    bp.connect(humGain);
+    humGain.connect(this.ambient);
     src2.start();
-    this._ambShimmer = foamGain;
+    this._ambShimmer = humGain;
 
     // ── Волны: медленный LFO на частоту lowpass (0.09 Гц) + медленный
     // амплитудный LFO на громкость «корпуса» (0.15 Гц). Даёт чувство
