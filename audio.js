@@ -5,9 +5,9 @@
 class GameAudio {
   constructor() {
     // _baseMaster — потолок общего уровня при 100% ползунка.
-    // Подняли с 0.46 → 0.78: эффекты звучат в несколько раз громче,
-    // но остаёмся заведомо ниже цифрового клиппинга.
-    this._baseMaster = 0.78;
+    // Подняли с 0.46 → 0.92: эффекты звучат значительно громче,
+    // при пиковых миксах всё равно остаёмся ниже цифрового клиппинга.
+    this._baseMaster = 0.92;
     this._ctx = null;
     this.master = null;
     this.ambient = null;
@@ -83,7 +83,7 @@ class GameAudio {
     this.ambient = this._ctx.createGain();
     this.ambient.gain.value = 0.86;
     this.sfx = this._ctx.createGain();
-    this.sfx.gain.value = 1.6;
+    this.sfx.gain.value = 2.1;
     this._sharkGain = this._ctx.createGain();
     this._sharkGain.gain.value = 0;
     this.ambient.connect(this.master);
@@ -261,7 +261,7 @@ class GameAudio {
       t,
       0.25
     );
-    this.sfx.gain.setTargetAtTime((sharks ? 0.9 : 1.6) * this._mixSfx, t, 0.2);
+    this.sfx.gain.setTargetAtTime((sharks ? 1.25 : 2.1) * this._mixSfx, t, 0.2);
   }
 
   _playBubble() {
@@ -323,8 +323,8 @@ class GameAudio {
       const g = ctx.createGain();
       const del = i * 0.055;
       g.gain.setValueAtTime(0.0001, t0 + del);
-      g.gain.exponentialRampToValueAtTime(0.14 * this._fxMul.pearl, t0 + del + 0.04);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + del + 1.8);
+      g.gain.exponentialRampToValueAtTime(0.28 * this._fxMul.pearl, t0 + del + 0.04);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + del + 2.0);
       o.connect(g);
       g.connect(this.sfx);
       o.start(t0 + del);
@@ -336,23 +336,30 @@ class GameAudio {
     const ctx = this._ctx;
     if (!ctx) return;
     const t0 = ctx.currentTime;
-    const o = ctx.createOscillator();
-    o.type = "sine";
-    o.frequency.setValueAtTime(880, t0);
-    o.frequency.exponentialRampToValueAtTime(320, t0 + 0.05);
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(0.22 * this._fxMul.dolphin, t0 + 0.008);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.1);
-    const bp = ctx.createBiquadFilter();
-    bp.type = "bandpass";
-    bp.frequency.value = 640;
-    bp.Q.value = 2.5;
-    o.connect(bp);
-    bp.connect(g);
-    g.connect(this.sfx);
-    o.start(t0);
-    o.stop(t0 + 0.1);
+    // Двойной «кик-клик» — частая схема реальных дельфиньих сигналов.
+    // Первый щелчок выше, второй на 30 мс позже и чуть ниже: вместе читаются
+    // куда ярче одиночного «тик».
+    const mk = (delay, f1, f2, amp) => {
+      const o = ctx.createOscillator();
+      o.type = "sine";
+      o.frequency.setValueAtTime(f1, t0 + delay);
+      o.frequency.exponentialRampToValueAtTime(f2, t0 + delay + 0.06);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0 + delay);
+      g.gain.exponentialRampToValueAtTime(amp * this._fxMul.dolphin, t0 + delay + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + delay + 0.12);
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = f1 * 0.8;
+      bp.Q.value = 2.2;
+      o.connect(bp);
+      bp.connect(g);
+      g.connect(this.sfx);
+      o.start(t0 + delay);
+      o.stop(t0 + delay + 0.13);
+    };
+    mk(0, 1050, 420, 0.42);
+    mk(0.032, 820, 320, 0.32);
   }
 
   playPearlTick() {
@@ -364,8 +371,8 @@ class GameAudio {
     o.frequency.value = 990;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(0.12 * this._fxMul.pearl, t0 + 0.006);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.06);
+    g.gain.exponentialRampToValueAtTime(0.2 * this._fxMul.pearl, t0 + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.07);
     o.connect(g);
     g.connect(this.sfx);
     o.start(t0);
@@ -385,7 +392,7 @@ class GameAudio {
     lp.frequency.value = 220;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(0.11, t0 + 0.12);
+    g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.12);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.0);
     o.connect(lp);
     lp.connect(g);
@@ -406,8 +413,8 @@ class GameAudio {
       const g = ctx.createGain();
       const t1 = t0 + i * 0.07;
       g.gain.setValueAtTime(0.0001, t1);
-      g.gain.exponentialRampToValueAtTime(0.09, t1 + 0.03);
-      g.gain.exponentialRampToValueAtTime(0.0001, t1 + 0.44);
+      g.gain.exponentialRampToValueAtTime(0.2, t1 + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, t1 + 0.5);
       o.connect(g);
       g.connect(this.sfx);
       o.start(t1);
@@ -427,8 +434,8 @@ class GameAudio {
       const g = ctx.createGain();
       const t1 = t0 + i * 0.09;
       g.gain.setValueAtTime(0.0001, t1);
-      g.gain.exponentialRampToValueAtTime(0.11, t1 + 0.04);
-      g.gain.exponentialRampToValueAtTime(0.0001, t1 + 1.0);
+      g.gain.exponentialRampToValueAtTime(0.24, t1 + 0.04);
+      g.gain.exponentialRampToValueAtTime(0.0001, t1 + 1.1);
       o.connect(g);
       g.connect(this.sfx);
       o.start(t1);
