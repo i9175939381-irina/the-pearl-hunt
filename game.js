@@ -2325,7 +2325,12 @@ class Renderer {
     this.canvas.setAttribute("aria-keyshortcuts", "WASD ArrowKeys Space Escape");
     this.canvas.style.outline = "none";
     this.resize();
-    window.addEventListener("resize", () => this.resize());
+    const _onResize = () => this.resize();
+    window.addEventListener("resize", _onResize);
+    // orientationchange даёт сигнал быстрее, чем resize, и иногда
+    // срабатывает отдельно — дублируем, чтобы canvas точно пересчитался
+    // при повороте телефона.
+    window.addEventListener("orientationchange", _onResize);
   }
 
   resize() {
@@ -3912,12 +3917,41 @@ class Game {
 
   _beginCaveInside() {
     const b = this.renderer.bounds;
-    const maze = buildCaveInsideMaze(CAVE_MAZE_CELL_COLS, CAVE_MAZE_CELL_ROWS);
-    const padX = 44;
-    const padTop = 46;
-    const padBot = 96;
+    // ── Адаптивный размер лабиринта. На узких/коротких экранах (мобильные
+    // портрет и особенно альбомная) фиксированные 5×3 клетки + большие
+    // отступы дают клетку ~25 px, в которую игрок (60×88 px) физически не
+    // помещается. Вычисляем так, чтобы ширина коридора (1 клетка) была
+    // достаточной для прохода игрока.
+    const narrow = Math.min(b.width, b.height);
+    const compact = narrow < 620;
+    const padX = compact ? 12 : 44;
+    const padTop = compact ? 22 : 46;
+    const padBot = compact ? 60 : 96;
     const availW = Math.max(80, b.width - padX * 2);
     const availH = Math.max(80, b.height - padTop - padBot);
+
+    // Минимальный комфортный размер клетки: чуть больше полной ширины
+    // игрока (halfW*2 = 60 px) + запас на стенки.
+    const MIN_CELL = compact ? 52 : 64;
+
+    // Подгоняем количество «клеток» лабиринта так, чтобы сетка реально
+    // помещалась с шагом >= MIN_CELL. Уменьшаем то измерение, у которого
+    // шаг меньше; не опускаемся ниже 2×2 (иначе совсем неинтересно).
+    let cols = CAVE_MAZE_CELL_COLS;
+    let rows = CAVE_MAZE_CELL_ROWS;
+    for (let guard = 0; guard < 6; guard++) {
+      const gW = cols * 2 + 1;
+      const gH = rows * 2 + 1;
+      const cellW = availW / gW;
+      const cellH = availH / gH;
+      if (cellW >= MIN_CELL && cellH >= MIN_CELL) break;
+      if (cellW < cellH && cols > 2) cols -= 1;
+      else if (rows > 2) rows -= 1;
+      else if (cols > 2) cols -= 1;
+      else break;
+    }
+
+    const maze = buildCaveInsideMaze(cols, rows);
     const cell = Math.min(availW / maze.W, availH / maze.H);
     const mw = cell * maze.W;
     const mh = cell * maze.H;
@@ -7549,9 +7583,10 @@ function main() {
     // и иногда audio.resume() недостаточно — сыграем короткий безмолвный
     // буфер, чтобы AudioContext точно перешёл в running.
     _forceAudioUnlock(gameAudio);
-    // Попросим полноэкранный режим, чтобы на Android Chrome скрылась
-    // шапка браузера. iOS Safari это не поддерживает — будет no-op.
-    _requestFullscreenIfPossible();
+    // Полноэкранный режим НЕ запрашиваем автоматически: на многих
+    // Android-браузерах (Samsung/Huawei/Xiaomi) это блокирует поворот
+    // экрана. Если пользователь захочет скрыть шапку браузера — можно
+    // использовать «Добавить на главный экран» (PWA-манифест настроен).
     game.startFromMenu();
     showTouchOnStart();
   });

@@ -1040,19 +1040,21 @@ html[lang="en"] .game-title {
   position: absolute;
   left: 0;
   top: 0;
-  width: 160px;
-  height: 160px;
+  /* База должна быть шире, чем радиус «тяги» ручки (maxR=92 в JS),
+     чтобы ручка визуально оставалась внутри базы при максимальном тилте. */
+  width: 220px;
+  height: 220px;
   transform: translate(-50%, -50%);
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.14s ease;
-  --j-size: 160px;
+  --j-size: 220px;
 }
 
 #touch-controls[data-ui-scale="large"] .touch-joystick {
-  --j-size: 190px;
-  width: 190px;
-  height: 190px;
+  --j-size: 250px;
+  width: 250px;
+  height: 250px;
 }
 
 .touch-joystick.is-visible {
