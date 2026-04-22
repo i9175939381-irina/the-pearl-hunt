@@ -39,6 +39,9 @@
       "start.keys.move": "WASD / стрелки — движение",
       "start.keys.boost": "Пробел — ускорение",
       "start.keys.pause": "Esc — пауза",
+      "start.keys.mobile.move": "Джойстик — движение",
+      "start.keys.mobile.boost": "Жемчужина — ускорение",
+      "start.keys.mobile.pause": "▐▐ — пауза",
       "start.button": "Погрузиться",
       "start.volume": "Звук океана",
       "start.volume.aria": "Громкость",
@@ -70,7 +73,7 @@
       "settings.lang.en": "English",
       "settings.close": "Закрыть",
       "settings.close.aria": "Закрыть настройки",
-      "settings.exit": "Выйти в меню",
+      "settings.exit": "Выйти из игры",
 
       // Подсказка поворота экрана (для мобильных)
       "rotate.title": "Поверни экран",
@@ -154,11 +157,16 @@
       "hud.hint.caveExit": "Enter — дальше в океан",
       "hud.hint.surfaceBoost": "Пробел — ускорить подъём к поверхности",
 
-      // HUD нижняя строка (подсказка управления)
+      // HUD нижняя строка (подсказка управления) — десктоп
       "hud.footer.caveInside":
         "WASD — осторожно · Пробел — чуть быстрее · Esc — пауза",
       "hud.footer.caveChase": "Esc — пауза",
       "hud.footer.default": "WASD / стрелки · Esc — пауза",
+      // Мобильные версии той же строки
+      "hud.footer.caveInside.mobile":
+        "Джойстик — осторожно · Жемчужина — чуть быстрее",
+      "hud.footer.caveChase.mobile": "▐▐ — пауза",
+      "hud.footer.default.mobile": "Джойстик · Жемчужина · ▐▐ — пауза",
 
       // HUD этап
       "hud.stage2": "Этап 2: Поиски Чёрной жемчужины",
@@ -230,6 +238,9 @@
       "start.keys.move": "WASD / arrows — move",
       "start.keys.boost": "Space — boost",
       "start.keys.pause": "Esc — pause",
+      "start.keys.mobile.move": "Joystick — move",
+      "start.keys.mobile.boost": "Pearl — boost",
+      "start.keys.mobile.pause": "▐▐ — pause",
       "start.button": "Dive in",
       "start.volume": "Ocean volume",
       "start.volume.aria": "Volume",
@@ -261,7 +272,7 @@
       "settings.lang.en": "English",
       "settings.close": "Close",
       "settings.close.aria": "Close settings",
-      "settings.exit": "Back to menu",
+      "settings.exit": "Exit game",
 
       // Rotate screen hint (mobile)
       "rotate.title": "Rotate your screen",
@@ -350,6 +361,10 @@
         "WASD — carefully · Space — a bit faster · Esc — pause",
       "hud.footer.caveChase": "Esc — pause",
       "hud.footer.default": "WASD / arrows · Esc — pause",
+      "hud.footer.caveInside.mobile":
+        "Joystick — carefully · Pearl — a bit faster",
+      "hud.footer.caveChase.mobile": "▐▐ — pause",
+      "hud.footer.default.mobile": "Joystick · Pearl · ▐▐ — pause",
 
       // HUD stage marker
       "hud.stage2": "Stage 2: Search for the Black Pearl",

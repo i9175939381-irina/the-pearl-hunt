@@ -46,6 +46,13 @@
     rotateEl: null,
     hintEl: null,
     hintDismissed: false,
+    /** Сколько суммарно пикселей игрок «протянул» джойстиком. Когда перевалит
+     *  за порог — считаем, что подсказка свою функцию выполнила и прячем её. */
+    hintUseTravel: 0,
+    hintUseTarget: 120,
+    /** id таймера безусловного автодисмисса (на случай, если игрок не двигает
+     *  джойстик — всё равно не показываем её вечно). */
+    hintAutoTimer: null,
     vibrate: true,
   };
 
@@ -154,9 +161,10 @@
         STATE.joystick.touchId = t.identifier;
         _placeJoystickAt(t.clientX, t.clientY);
         STATE.joystick.el.classList.add("is-visible");
-        // Первый контакт с зоной джойстика — убираем подсказку навсегда
-        // в этой сессии.
-        _dismissHint();
+        // Первый контакт — НЕ прячем подсказку сразу. Она исчезнет, когда
+        // игрок реально «поводит» джойстиком (см. _onTouchMove), либо по
+        // автотаймеру. Иначе на Android она исчезает до того, как глаз
+        // успеет её заметить.
         if (STATE.input && typeof STATE.input.setVirtualAxes === "function") {
           STATE.input.setVirtualAxes(0, 0, true);
         }
@@ -183,6 +191,13 @@
         _placeKnob(dx, dy);
         if (STATE.input && typeof STATE.input.setVirtualAxes === "function") {
           STATE.input.setVirtualAxes(dx / mr, dy / mr, true);
+        }
+        // Копим «использование» джойстика — когда накопится достаточно,
+        // подсказка уходит. Это намного лучше, чем прятать её по первому
+        // тапу: игрок успевает заметить её, понять и попробовать.
+        if (!STATE.hintDismissed) {
+          STATE.hintUseTravel += Math.min(mr, len) * 0.08;
+          if (STATE.hintUseTravel >= STATE.hintUseTarget) _dismissHint();
         }
         ev.preventDefault();
       }
@@ -216,6 +231,21 @@
     if (STATE.hintDismissed) return;
     STATE.hintDismissed = true;
     if (STATE.hintEl) STATE.hintEl.classList.add("is-hidden");
+    if (STATE.hintAutoTimer) {
+      clearTimeout(STATE.hintAutoTimer);
+      STATE.hintAutoTimer = null;
+    }
+  }
+
+  function _showHint() {
+    if (!STATE.hintEl) return;
+    STATE.hintDismissed = false;
+    STATE.hintUseTravel = 0;
+    STATE.hintEl.classList.remove("is-hidden");
+    if (STATE.hintAutoTimer) clearTimeout(STATE.hintAutoTimer);
+    // Автоматически прячем через 8 секунд — даже если игрок ничего не
+    // касается. Достаточно, чтобы заметить и понять.
+    STATE.hintAutoTimer = setTimeout(_dismissHint, 8000);
   }
 
   function _wireDom() {
@@ -272,10 +302,11 @@
       else STATE.rootEl.classList.remove("is-visible");
     }
     // Показ подсказки-«капельки» — только при активации и пока она не
-    // была отклонена в этой сессии.
+    // была отклонена в этой сессии. При каждой «повторной» активации
+    // сбрасываем счётчик и запускаем автотаймер заново.
     if (STATE.hintEl) {
       if (STATE.active && !STATE.hintDismissed) {
-        STATE.hintEl.classList.remove("is-hidden");
+        _showHint();
       } else {
         STATE.hintEl.classList.add("is-hidden");
       }

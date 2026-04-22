@@ -163,6 +163,17 @@ body {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
 }
 
+/* По умолчанию на ПК (pointer: fine) показываем клавиатурную подсказку,
+   мобильную прячем; на тач-устройствах — наоборот. */
+.start-keys--mobile {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .start-keys--desktop { display: none; }
+  .start-keys--mobile  { display: flex; }
+}
+
 /* После анимации скрытия — убираем слой из потока (показ: returnToMenu в game.js) */
 .overlay[hidden] {
   display: none !important;
@@ -299,12 +310,16 @@ html[lang="en"] .game-title {
 .overlay--panel {
   flex-direction: column;
   gap: 1rem;
-  max-width: 26rem;
-  padding: 1.75rem 1.25rem;
+  max-width: min(26rem, 94vw);
+  max-height: 92vh;
+  overflow-y: auto;
+  padding: 1.5rem 1.1rem;
   opacity: 0;
   transition: opacity 0.5s ease;
   background: radial-gradient(ellipse at center, rgba(8, 36, 58, 0.78), rgba(2, 10, 22, 0.88));
   pointer-events: none;
+  /* На маленьких экранах inset оверлея 1rem — учтено в padding'е .overlay */
+  box-sizing: border-box;
 }
 
 #stage-overlay {
@@ -600,12 +615,15 @@ html[lang="en"] .game-title {
 
 .win-epic__line {
   margin: 0;
-  font-size: clamp(1rem, 3.2vw, 1.22rem);
+  font-size: clamp(0.9rem, 2.8vw, 1.22rem);
   font-weight: 500;
-  line-height: 1.5;
+  line-height: 1.4;
   letter-spacing: 0.02em;
   color: #eef8ff;
   opacity: 0;
+  /* Не даём длинным фразам «уйти» за край панели на узких экранах. */
+  max-width: 100%;
+  word-wrap: break-word;
   animation: win-epic-rise 1.05s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   text-shadow:
     0 0 20px rgba(100, 200, 255, 0.45),
@@ -625,7 +643,7 @@ html[lang="en"] .game-title {
 .win-epic__line--3 {
   animation-delay: 1.35s;
   font-weight: 600;
-  font-size: clamp(1.08rem, 3.5vw, 1.32rem);
+  font-size: clamp(1rem, 3.1vw, 1.32rem);
   color: #fff8ee;
   text-shadow:
     0 0 24px rgba(255, 220, 160, 0.35),
@@ -1082,12 +1100,13 @@ html[lang="en"] .game-title {
 .touch-boost {
   position: absolute;
   bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
-  /* Обычный размер: ~64px, не занимает пол-экрана на маленьких телефонах. */
-  width: 64px;
-  height: 64px;
+  /* Обычный размер: ~60px, не занимает пол-экрана на маленьких телефонах. */
+  width: 60px;
+  height: 60px;
   padding: 0;
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 230, 170, 0.55);
+  /* Без обводки — «мягкая» полупрозрачная жемчужинка, не режет глаз. */
+  border: none;
   background: transparent;
   pointer-events: auto;
   cursor: pointer;
@@ -1096,9 +1115,16 @@ html[lang="en"] .game-title {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.1s ease, box-shadow 0.15s ease;
+  /* Полупрозрачная по умолчанию — становится ярче при удержании. */
+  opacity: 0.55;
+  transition: opacity 0.18s ease, transform 0.1s ease;
   /* По умолчанию — слева (если джойстик справа, handedness=right). */
   left: calc(1.2rem + env(safe-area-inset-left, 0px));
+}
+
+.touch-boost.is-active {
+  opacity: 0.95;
+  transform: scale(0.96);
 }
 
 #touch-controls[data-handedness="left"] .touch-boost {
@@ -1107,23 +1133,29 @@ html[lang="en"] .game-title {
 }
 
 #touch-controls[data-ui-scale="large"] .touch-boost {
-  width: 86px;
-  height: 86px;
+  width: 82px;
+  height: 82px;
 }
 
 .touch-boost__pearl {
   display: block;
-  /* Сама жемчужина занимает ~75% кнопки, с отступом для рамки. */
-  width: 72%;
-  height: 72%;
+  /* Сама жемчужина занимает всю кнопку (рамка убрана). */
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 30% 28%, #fff8ea 0%, #ffe6a8 22%, #ffc57a 48%, #e89650 78%, #a4602e 100%);
+    radial-gradient(circle at 32% 28%,
+      rgba(255, 248, 234, 0.88) 0%,
+      rgba(255, 230, 168, 0.78) 26%,
+      rgba(255, 197, 122, 0.6) 54%,
+      rgba(232, 150, 80, 0.36) 82%,
+      rgba(164, 96, 46, 0.2) 100%);
+  /* Сдержанное свечение — не «режет глаз». */
   box-shadow:
-    0 0 14px rgba(255, 210, 140, 0.55),
-    0 0 26px rgba(255, 180, 100, 0.28),
-    inset 0 1px 3px rgba(255, 255, 255, 0.5);
-  animation: boost-pearl-glow 2.6s ease-in-out infinite;
+    0 0 10px rgba(255, 210, 140, 0.32),
+    0 0 18px rgba(255, 180, 100, 0.18),
+    inset 0 1px 3px rgba(255, 255, 255, 0.35);
+  animation: boost-pearl-glow 3.4s ease-in-out infinite;
 }
 
 .touch-boost.is-active {
@@ -1142,34 +1174,36 @@ html[lang="en"] .game-title {
 @keyframes boost-pearl-glow {
   0%, 100% {
     box-shadow:
-      0 0 12px rgba(255, 210, 140, 0.5),
-      0 0 22px rgba(255, 180, 100, 0.25),
-      inset 0 1px 3px rgba(255, 255, 255, 0.5);
+      0 0 8px rgba(255, 210, 140, 0.25),
+      0 0 14px rgba(255, 180, 100, 0.14),
+      inset 0 1px 3px rgba(255, 255, 255, 0.3);
   }
   50% {
     box-shadow:
-      0 0 18px rgba(255, 225, 160, 0.7),
-      0 0 36px rgba(255, 200, 120, 0.4),
-      inset 0 1px 3px rgba(255, 255, 255, 0.55);
+      0 0 12px rgba(255, 225, 160, 0.4),
+      0 0 22px rgba(255, 200, 120, 0.22),
+      inset 0 1px 3px rgba(255, 255, 255, 0.35);
   }
 }
 
 /* ── Подсказка «Коснись и тяни» на стороне джойстика ──
-   Появляется при первом запуске игры на мобильном, пока игрок не трогал
-   джойстик. Плавно пульсирует, чтобы привлечь внимание. После первого
-   касания джойстика JS добавляет класс is-hidden и подсказка исчезает
-   навсегда в этой сессии. */
+   Появляется при первом запуске игры на мобильном, исчезает после того,
+   как игрок реально начал использовать джойстик (или по таймауту).
+   Нарочно сделана плотной — на некоторых Android-браузерах тонкие линии
+   и радиальные градиенты плохо рендерятся, так что берём сплошные цвета
+   и жирный контур. */
 .touch-joystick-hint {
   position: absolute;
-  bottom: clamp(4.5rem, 22vh, 7rem);
-  width: 96px;
+  /* bottom с учётом safe-area, чтобы подсказка не ушла под системную панель */
+  bottom: calc(clamp(5rem, 20vh, 8rem) + env(safe-area-inset-bottom, 0px));
+  width: 120px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.55rem;
   pointer-events: none;
-  opacity: 0.85;
-  transition: opacity 0.6s ease;
+  opacity: 1;
+  transition: opacity 1.2s ease;
   /* По умолчанию джойстик справа — подсказка тоже справа. */
   right: clamp(1.5rem, 10vw, 3rem);
   left: auto;
@@ -1185,46 +1219,82 @@ html[lang="en"] .game-title {
 }
 
 .touch-joystick-hint__drop {
-  width: 56px;
-  height: 56px;
+  position: relative;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
-  border: 1.5px dashed rgba(190, 240, 255, 0.7);
-  background: radial-gradient(
-    circle at 35% 28%,
-    rgba(230, 250, 255, 0.32),
-    rgba(140, 220, 255, 0.12) 50%,
-    rgba(60, 140, 200, 0.05) 80%,
-    rgba(40, 90, 140, 0) 100%
-  );
+  /* Сплошной бирюзовый круг с сильным ободком — хорошо видно на любом фоне. */
+  border: 2px solid rgba(220, 245, 255, 0.95);
+  background: rgba(90, 195, 240, 0.42);
   box-shadow:
-    0 0 20px rgba(140, 220, 255, 0.35),
-    inset 0 0 16px rgba(180, 230, 255, 0.22);
-  animation: joystick-hint-pulse 1.8s ease-in-out infinite;
+    0 0 22px rgba(120, 210, 255, 0.55),
+    0 0 36px rgba(80, 180, 240, 0.35),
+    inset 0 0 18px rgba(230, 250, 255, 0.32);
+  animation: joystick-hint-pulse 1.6s ease-in-out infinite;
+}
+
+/* «Палец» в центре круга — чёткий намёк «дотронься сюда». */
+.touch-joystick-hint__drop::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
+  transform: translate(-50%, -50%);
+}
+
+/* Стрелочки вверх/вниз/влево/вправо по кругу — показываем, что это тянется. */
+.touch-joystick-hint__drop::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  border: 1.5px dashed rgba(255, 255, 255, 0.6);
+  transform: translate(-50%, -50%);
+  animation: joystick-hint-ring 2.4s linear infinite;
 }
 
 .touch-joystick-hint__label {
-  font-size: 0.72rem;
-  font-weight: 600;
+  font-size: 0.82rem;
+  font-weight: 700;
   letter-spacing: 0.04em;
-  color: rgba(220, 245, 255, 0.92);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+  color: #ffffff;
+  /* Читаемость на любом фоне: тёмная подложка + тень. */
+  background: rgba(8, 24, 44, 0.65);
+  padding: 0.25rem 0.6rem;
+  border-radius: 10px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
   text-align: center;
-  opacity: 0.9;
 }
 
 @keyframes joystick-hint-pulse {
   0%, 100% {
     transform: scale(1);
     box-shadow:
-      0 0 18px rgba(140, 220, 255, 0.28),
-      inset 0 0 14px rgba(180, 230, 255, 0.18);
+      0 0 18px rgba(120, 210, 255, 0.45),
+      0 0 30px rgba(80, 180, 240, 0.28),
+      inset 0 0 16px rgba(230, 250, 255, 0.28);
   }
   50% {
-    transform: scale(1.08);
+    transform: scale(1.1);
     box-shadow:
-      0 0 28px rgba(160, 230, 255, 0.55),
-      inset 0 0 22px rgba(200, 240, 255, 0.3);
+      0 0 28px rgba(160, 230, 255, 0.7),
+      0 0 46px rgba(100, 200, 255, 0.48),
+      inset 0 0 22px rgba(240, 252, 255, 0.4);
   }
+}
+
+@keyframes joystick-hint-ring {
+  0%   { transform: translate(-50%, -50%) rotate(0deg); opacity: 0.6; }
+  50%  { opacity: 1; }
+  100% { transform: translate(-50%, -50%) rotate(360deg); opacity: 0.6; }
 }
 
 /* Кнопка «Выйти в меню» в настройках — видна только когда игра идёт. */

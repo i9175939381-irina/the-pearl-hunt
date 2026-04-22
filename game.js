@@ -1022,20 +1022,24 @@ class Player {
     const drag = boost ? 2.75 : this.drag + (sc < 1 ? (1 - sc) * 0.45 : 0);
 
     // Приём ввода:
-    //  • клавиатура/стрелки всегда дают векторы длиной 0 или 1 (или √2
-    //    по диагонали) — их нужно нормализовать до 1, иначе по диагонали
-    //    разгон быстрее.
-    //  • виртуальный джойстик даёт длину в [0..1] (доля полного тилта).
-    //    Эту долю сохраняем как есть — это и есть аналоговое управление:
-    //    малый наклон = малый разгон (для точного подбора жемчужин).
-    //  • маленькая мёртвая зона, чтобы исключить дрожание пальца у центра.
+    //  • клавиатура/стрелки дают векторы длиной 1 (или √2 по диагонали) —
+    //    тут важна нормализация, чтобы по диагонали не разгонялось быстрее.
+    //  • виртуальный джойстик — длина в [0..1] (доля тилта). На неё мы
+    //    накладываем sqrt-кривую: малый наклон = заметный разгон, полный
+    //    наклон = разгон на 100 %. Это лечит ощущение «мёртвой зоны» —
+    //    крохотное движение пальцем уже ощутимо сдвигает пловца, но
+    //    крупные наклоны не разгоняют сильнее положенного.
+    //  • почти без мёртвой зоны (только от дрожи).
     const len = Math.hypot(axes.x, axes.y);
     let ix = 0;
     let iy = 0;
-    if (len > 0.08) {
-      const scale = len > 1 ? 1 / len : 1;
-      ix = axes.x * scale;
-      iy = axes.y * scale;
+    if (len > 0.02) {
+      const mag = Math.min(1, len);
+      const curve = Math.sqrt(mag);
+      const nx = axes.x / len;
+      const ny = axes.y / len;
+      ix = nx * curve;
+      iy = ny * curve;
     }
     this.vx += ix * accel * dt;
     this.vy += iy * accel * dt;
@@ -2099,6 +2103,15 @@ class HUD {
       caveInsideMazeMode = false,
     } = info;
     ctx.save();
+    // ── Адаптивный масштаб ВЕРХНЕЙ панели HUD. На узких/коротких
+    // экранах (портрет телефона, альбомная на маленьких Android)
+    // уменьшаем панель, чтобы она не занимала четверть игрового поля.
+    // Футер внизу отрисовываем ВНЕ этого scale.
+    const narrow = Math.min(bounds.width, bounds.height);
+    const uiScale =
+      narrow < 420 ? 0.7 : narrow < 560 ? 0.8 : narrow < 720 ? 0.9 : 1;
+    ctx.save();
+    if (uiScale !== 1) ctx.scale(uiScale, uiScale);
     const x = this.margin;
     const y = this.margin;
     const w = 240;
@@ -2248,32 +2261,50 @@ class HUD {
       }
     }
 
+    // ── Завершили масштабированную верхнюю панель: нижние подсказки и
+    // футер рисуем в нормальных координатах, чтобы они не «уплывали»
+    // выше при uiScale<1.
+    ctx.restore();
+
     if (surfaceBoostHint) {
       this._strokeText(
         ctx,
         _t("hud.hint.surfaceBoost"),
-        px,
+        this.margin + this.panelPad,
         bounds.height - 48,
         "600 12px system-ui, sans-serif",
         "#ffe8c8"
       );
     }
+    // На тач-устройствах показываем мобильную подсказку, на ПК — клавиатурную.
+    const _coarse = this._isCoarsePointer();
     const footer =
       caveInsideHint && !surfaceBoostHint
-        ? _t("hud.footer.caveInside")
+        ? _t(_coarse ? "hud.footer.caveInside.mobile" : "hud.footer.caveInside")
         : caveChaseHint && !surfaceBoostHint
-          ? _t("hud.footer.caveChase")
-          : _t("hud.footer.default");
+          ? _t(_coarse ? "hud.footer.caveChase.mobile" : "hud.footer.caveChase")
+          : _t(_coarse ? "hud.footer.default.mobile" : "hud.footer.default");
     this._strokeText(
       ctx,
       footer,
-      px,
+      this.margin + this.panelPad,
       bounds.height - 28,
       "11px system-ui, sans-serif",
       "#c8e8ff"
     );
 
     ctx.restore();
+  }
+
+  /** Детектим тач-устройство: (pointer: coarse). Кэшируем на инстансе. */
+  _isCoarsePointer() {
+    if (this._coarsePointerCached != null) return this._coarsePointerCached;
+    let result = false;
+    try {
+      result = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+    } catch (_e) {}
+    this._coarsePointerCached = result;
+    return result;
   }
 }
 
