@@ -46,6 +46,7 @@
       "start.volume": "Звук океана",
       "start.volume.aria": "Громкость",
       "start.settings": "Настройки",
+      "start.best": "Лучший результат: {n}",
 
       // Панель настроек
       "settings.title": "Настрой игру под себя",
@@ -248,6 +249,7 @@
       "start.volume": "Ocean volume",
       "start.volume.aria": "Volume",
       "start.settings": "Settings",
+      "start.best": "Best: {n}",
 
       // Settings panel
       "settings.title": "Customise your game",

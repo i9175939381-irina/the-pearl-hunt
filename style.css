@@ -56,24 +56,54 @@ body {
 }
 
 /* Обложка-вход: картинка-фон, мягкое затемнение сверху/снизу для читаемости,
-   заголовок с курсивом сверху, кнопка «Погрузиться» снизу. */
+   заголовок с курсивом сверху, кнопка «Погрузиться» снизу.
+   Градиент-заглушка — пока cover.png не подгрузилась, игрок видит
+   благородный океанский переход, а не чёрный экран. Сама картинка
+   рисуется через ::before и плавно проявляется после загрузки. */
 .overlay--start {
   max-width: none;
   padding: 0;
   gap: 0;
   justify-content: space-between;
+  background:
+    radial-gradient(
+      ellipse at 50% 28%,
+      rgba(32, 92, 138, 0.55) 0%,
+      rgba(10, 36, 62, 0.65) 45%,
+      rgba(2, 12, 26, 0.95) 100%
+    ),
+    linear-gradient(180deg, #08223c 0%, #051a31 45%, #020d1c 100%);
+  background-color: #020d1c;
+  overflow: hidden;
+  position: relative;
+}
+
+.overlay--start::before {
+  content: "";
+  position: absolute;
+  inset: 0;
   background-image: url("cover.png");
   background-size: cover;
   background-position: center center;
   background-repeat: no-repeat;
-  background-color: #051627;
-  overflow: hidden;
+  /* Пока картинка не прогрузилась — полностью прозрачна, градиент-заглушка
+   * выше играет роль благородной подложки. Класс .cover-loaded ставится
+   * JS’ом сразу после успешной загрузки cover.png. */
+  opacity: 0;
+  transition: opacity 550ms ease-out;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.overlay--start.cover-loaded::before {
+  opacity: 1;
 }
 
 .start-cover__scrim {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  z-index: 1;
   background:
     linear-gradient(
       180deg,
@@ -88,7 +118,7 @@ body {
 .start-cover__top,
 .start-cover__bottom {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -258,6 +288,19 @@ html[lang="en"] .game-title {
 .btn-primary:focus-visible {
   outline: 2px solid #b8f0ff;
   outline-offset: 3px;
+}
+
+/* Мягкая строка «Лучший результат» над кнопкой. Появляется только если
+ * игрок уже хотя бы раз собрал жемчужину (в JS ставится [hidden] иначе). */
+.start-best {
+  margin: 0 0 0.15rem;
+  font-size: clamp(0.85rem, 2vw, 0.98rem);
+  color: rgba(240, 248, 255, 0.82);
+  text-shadow:
+    0 1px 2px rgba(0, 18, 36, 0.85),
+    0 0 18px rgba(140, 220, 255, 0.25);
+  letter-spacing: 0.015em;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Главная кнопка входа на обложке — крупнее, с «жемчужным» свечением. */
@@ -1131,6 +1174,10 @@ html[lang="en"] .game-title {
 
 /* Кнопка ускорения — светящаяся жемчужина. */
 .touch-boost {
+  /* На мобильном экране для ускорения всё равно нет места, а кнопка только
+   * отвлекает и режет глаз. Скрываем полностью. Клавиатурный Shift/Space
+   * на десктопе продолжает работать как и раньше. */
+  display: none !important;
   position: absolute;
   bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   /* Обычный размер: ~60px, не занимает пол-экрана на маленьких телефонах. */

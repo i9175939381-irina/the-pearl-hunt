@@ -12,7 +12,7 @@
  * Версия кэша — обязательно повышай при любом изменении игры, иначе
  * часть пользователей будет видеть старый код (что и случилось).
  */
-const CACHE_NAME = "pearl-hunt-v7";
+const CACHE_NAME = "pearl-hunt-v9";
 const PRECACHE = [
   "./",
   "./index.html",

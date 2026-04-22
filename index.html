@@ -9,6 +9,10 @@
   <meta name="apple-mobile-web-app-title" content="Жемчужины" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="cover.png" />
+  <!-- Ранняя загрузка обложки: браузер начинает скачивать её сразу, ещё
+       до того как доберётся до CSS. Так обложка успевает появиться к
+       моменту первой отрисовки, а не «частями». -->
+  <link rel="preload" as="image" href="cover.png" fetchpriority="high" />
   <title data-i18n="meta.title">Охота за жемчужинами</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -44,6 +48,7 @@
     </div>
 
     <div class="start-cover__bottom">
+      <p id="start-best" class="start-best" hidden></p>
       <button type="button" id="btn-start" class="btn-primary btn-dive" data-i18n="start.button">Погрузиться</button>
     </div>
 
@@ -267,6 +272,24 @@
     <button type="button" id="btn-lose-retry" class="btn-primary" data-i18n="lose.retry">Попробовать ещё</button>
   </div>
 
+  <script>
+    // Ранний fade-in обложки: как только cover.png прогрузилась (из preload
+    // или напрямую), ставим класс, и CSS её мягко проявляет поверх
+    // градиента-заглушки. Скрипт в body — ждём момента, когда элемент уже
+    // в DOM, но саму загрузку запускаем сразу.
+    (function () {
+      var target = document.getElementById("start-overlay");
+      if (!target) return;
+      var img = new Image();
+      img.onload = function () { target.classList.add("cover-loaded"); };
+      img.onerror = function () { /* заглушка уже красивая — ничего не делаем */ };
+      img.src = "cover.png";
+      // Если браузер уже взял её из кэша — onload мог не сработать.
+      if (img.complete && img.naturalWidth > 0) {
+        target.classList.add("cover-loaded");
+      }
+    })();
+  </script>
   <script src="settings.js"></script>
   <script src="i18n.js"></script>
   <script src="touch-controls.js"></script>
