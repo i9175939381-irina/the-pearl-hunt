@@ -2549,7 +2549,7 @@ class Game {
    * @param {HTMLCanvasElement} canvas
    * @param {HTMLElement} startOverlay
    * @param {{
-   *   lose: { el: HTMLElement, pearlsSpan: HTMLElement, bestSpan: HTMLElement, btn: HTMLButtonElement } | null,
+   *   lose: { el: HTMLElement, pearlsSpan: HTMLElement, bestSpan?: HTMLElement, btn: HTMLButtonElement } | null,
    *   stageOffer: { el: HTMLElement, btnContinue: HTMLButtonElement, btnNext: HTMLButtonElement } | null,
    *   win: { el: HTMLElement, pearlsSpan: HTMLElement, titleEl?: HTMLElement, lineEl?: HTMLElement, btnMenu: HTMLButtonElement, btnAgain: HTMLButtonElement } | null,
    *   nextStage: { el: HTMLElement, btnBack: HTMLButtonElement } | null,
@@ -2889,15 +2889,6 @@ class Game {
     const prev = Number(localStorage.getItem(STORAGE_KEY_BEST_PEARLS) || 0);
     const next = Math.max(prev, this.pearlsCollected);
     localStorage.setItem(STORAGE_KEY_BEST_PEARLS, String(next));
-    // Сообщим слушателям обложки — чтобы строка «Лучший результат» обновилась,
-    // если игрок потом вернётся на стартовый экран через «В меню».
-    try {
-      if (next > prev && typeof CustomEvent === "function") {
-        window.dispatchEvent(new CustomEvent("pearl-hunt:best-updated"));
-      }
-    } catch (_err) {
-      /* ignore */
-    }
     return next;
   }
 
@@ -7674,34 +7665,6 @@ function main() {
   const overlay = document.getElementById("start-overlay");
   const btn = document.getElementById("btn-start");
 
-  // Строка с лучшим результатом на обложке. Показываем только если
-  // игрок хотя бы раз что-то собрал — пустое «0» новичков не поздравляет.
-  // Локализация обновляется при смене языка.
-  (function setupBestScoreLine() {
-    const el = document.getElementById("start-best");
-    if (!el) return;
-    const update = () => {
-      let best = 0;
-      try {
-        best = Number(localStorage.getItem(STORAGE_KEY_BEST_PEARLS) || 0) || 0;
-      } catch (_err) {
-        best = 0;
-      }
-      if (best > 0) {
-        el.textContent = _t("start.best", { n: best });
-        el.hidden = false;
-      } else {
-        el.hidden = true;
-      }
-    };
-    update();
-    if (window.i18n && typeof window.i18n.onChange === "function") {
-      window.i18n.onChange(() => update());
-    }
-    // Если игрок вернулся на обложку после заплыва — обновим цифру.
-    window.addEventListener("pearl-hunt:best-updated", update);
-  })();
-
   const loseEl = document.getElementById("lose-overlay");
   const losePearls = document.getElementById("lose-pearls-count");
   const loseBest = document.getElementById("lose-best-count");
@@ -7738,8 +7701,8 @@ function main() {
 
   const domUi = {
     lose:
-      loseEl && losePearls && loseBest && btnLoseRetry
-        ? { el: loseEl, pearlsSpan: losePearls, bestSpan: loseBest, btn: btnLoseRetry }
+      loseEl && losePearls && btnLoseRetry
+        ? { el: loseEl, pearlsSpan: losePearls, bestSpan: loseBest || undefined, btn: btnLoseRetry }
         : null,
     stageOffer:
       stageEl && btnStageNext && btnStageContinue

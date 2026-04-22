@@ -19,11 +19,16 @@ body {
   display: block;
   width: 100vw;
   height: 100vh;
+  /* Явный слой ниже HTML-обложки: без z-index часть движков рисует canvas
+     поверх последующих блоков при особых режимах (fullscreen, слои GPU). */
+  position: relative;
+  z-index: 0;
   /* Размер буфера canvas задаётся в JS под DPR и resize */
 }
 
 #start-overlay {
   z-index: 100;
+  isolation: isolate;
   opacity: 1;
   visibility: visible;
   transition: opacity 0.55s ease, visibility 0.55s ease;
@@ -288,19 +293,6 @@ html[lang="en"] .game-title {
 .btn-primary:focus-visible {
   outline: 2px solid #b8f0ff;
   outline-offset: 3px;
-}
-
-/* Мягкая строка «Лучший результат» над кнопкой. Появляется только если
- * игрок уже хотя бы раз собрал жемчужину (в JS ставится [hidden] иначе). */
-.start-best {
-  margin: 0 0 0.15rem;
-  font-size: clamp(0.85rem, 2vw, 0.98rem);
-  color: rgba(240, 248, 255, 0.82);
-  text-shadow:
-    0 1px 2px rgba(0, 18, 36, 0.85),
-    0 0 18px rgba(140, 220, 255, 0.25);
-  letter-spacing: 0.015em;
-  font-variant-numeric: tabular-nums;
 }
 
 /* Главная кнопка входа на обложке — крупнее, с «жемчужным» свечением. */
@@ -608,12 +600,6 @@ html[lang="en"] .game-title {
   font-size: clamp(1.2rem, 3.5vw, 1.45rem);
   font-weight: 600;
   margin-bottom: 0.35rem;
-}
-
-.lose-line--best {
-  font-size: 0.95rem;
-  color: #c8ecff;
-  opacity: 0.95;
 }
 
 /* Громкость до старта: тихо, в тон интерфейса */
