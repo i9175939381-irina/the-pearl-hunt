@@ -798,6 +798,9 @@ class Input {
   constructor() {
     /** @type {Record<string, boolean>} */
     this.keys = Object.create(null);
+    // Виртуальный ввод для мобильных/геймпадов. Если active=true — перекрывает
+    // клавиатурные оси (возвращает аналоговые значения из джойстика).
+    this._virtual = { x: 0, y: 0, active: false };
     this._boundDown = (e) => this._onKey(e, true);
     this._boundUp = (e) => this._onKey(e, false);
     window.addEventListener("keydown", this._boundDown, { passive: false });
@@ -825,8 +828,12 @@ class Input {
     this.keys[k] = down;
   }
 
-  /** Направление движения: { x: -1|0|1, y: -1|0|1 } */
+  /** Направление движения: { x, y }. На клавиатуре — -1|0|1, на джойстике —
+   * аналоговое значение в диапазоне [-1..1]. Player.update сам нормализует. */
   getMovementAxes() {
+    if (this._virtual.active) {
+      return { x: this._virtual.x, y: this._virtual.y };
+    }
     let x = 0;
     let y = 0;
     if (this.keys["ArrowLeft"] || this.keys["KeyA"]) x -= 1;
@@ -834,6 +841,23 @@ class Input {
     if (this.keys["ArrowUp"] || this.keys["KeyW"]) y -= 1;
     if (this.keys["ArrowDown"] || this.keys["KeyS"]) y += 1;
     return { x, y };
+  }
+
+  /** Тач-джойстик пишет сюда аналоговые оси. x,y — в [-1..1], active — жив ли джойстик. */
+  setVirtualAxes(x, y, active) {
+    this._virtual.x = Number.isFinite(x) ? Math.max(-1, Math.min(1, x)) : 0;
+    this._virtual.y = Number.isFinite(y) ? Math.max(-1, Math.min(1, y)) : 0;
+    this._virtual.active = !!active;
+  }
+
+  /** Кнопка ускорения с тач-UI — эквивалент удержания Пробела. */
+  setVirtualBoost(down) {
+    this.keys["Space"] = !!down;
+  }
+
+  /** Тач-кнопка паузы → имитирует Escape один раз. */
+  triggerVirtualEscape() {
+    this.keys["Escape"] = true;
   }
 
   consumeEscapePress() {
@@ -871,6 +895,11 @@ class Input {
     for (const k of keys) {
       this.keys[k] = false;
     }
+    // Также сбрасываем виртуальные оси: если палец ещё на экране, следующий
+    // touchmove их обновит — так что побочек не будет.
+    this._virtual.x = 0;
+    this._virtual.y = 0;
+    this._virtual.active = false;
   }
 
   dispose() {
@@ -2354,7 +2383,15 @@ class Game {
     this.player = new Player();
     this.hud = new HUD();
     this.underwater = new UnderwaterScene();
-    this.bubbleField = new BubbleField();
+    // «Красиво» — плотная стая пузырьков, «Экономно» — меньше для слабых устройств.
+    // Менять настройку на лету не обязательно — достаточно при следующем запуске.
+    const _gq =
+      (typeof window !== "undefined" &&
+        window.AppSettings &&
+        window.AppSettings.get &&
+        window.AppSettings.get("graphicsQuality")) ||
+      "high";
+    this.bubbleField = new BubbleField(_gq === "eco" ? 26 : 48);
     this.pickupVfx = new PickupVfx();
 
     /** @type {Pearl[]} */
@@ -7418,7 +7455,50 @@ function main() {
   _initSettingsPanel();
 
   const game = new Game(canvas, overlay, domUi, gameAudio);
-  btn.addEventListener("click", () => game.startFromMenu());
+
+  // ── Мобильный тач-ввод: подключаем модуль к Input. Если устройство не
+  // тач (pointer: fine) — модуль работает «вхолостую», DOM прячется через CSS.
+  _wireTouchControls(game);
+
+  // ── PWA: регистрируем service worker (оффлайн-поддержка + домашний экран).
+  _registerServiceWorker();
+
+  // ── Подсказка «поверни экран»: показываем при первом заходе в игру, если
+  // устройство тач + портрет + настройка разрешает. Один раз за сессию.
+  _initRotateHint(() => game && game.run);
+
+  // Шестерёнка, доступная во время игры (в том числе из паузы).
+  const ingameGear = document.getElementById("ingame-settings-gear");
+  if (ingameGear) {
+    ingameGear.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      // Используем тот же openSettings, что и на обложке: просто кликнем
+      // по кнопке-триггеру, чтобы переиспользовать всю существующую логику.
+      const open = document.getElementById("btn-start-settings");
+      if (open) open.click();
+    });
+  }
+
+  // При старте — показать тач-UI, при возврате в меню — спрятать.
+  const showTouchOnStart = () => {
+    if (window.TouchControls && typeof window.TouchControls.setVisible === "function") {
+      window.TouchControls.setVisible(true);
+    }
+    if (ingameGear) ingameGear.hidden = false;
+    _maybeShowRotateHint();
+  };
+  const hideTouchOnMenu = () => {
+    if (window.TouchControls && typeof window.TouchControls.setVisible === "function") {
+      window.TouchControls.setVisible(false);
+    }
+    if (ingameGear) ingameGear.hidden = true;
+  };
+
+  btn.addEventListener("click", () => {
+    game.startFromMenu();
+    showTouchOnStart();
+  });
 
   if (domUi.lose) domUi.lose.btn.addEventListener("click", () => game.retryFromLose());
   if (domUi.stageOffer) {
@@ -7426,11 +7506,17 @@ function main() {
     domUi.stageOffer.btnNext.addEventListener("click", () => game.goToNextStageStub());
   }
   if (domUi.win) {
-    domUi.win.btnMenu.addEventListener("click", () => game.winGoToMenu());
+    domUi.win.btnMenu.addEventListener("click", () => {
+      game.winGoToMenu();
+      hideTouchOnMenu();
+    });
     domUi.win.btnAgain.addEventListener("click", () => game.winPlayAgain());
   }
   if (domUi.nextStage) {
-    domUi.nextStage.btnBack.addEventListener("click", () => game.exitNextStageStub());
+    domUi.nextStage.btnBack.addEventListener("click", () => {
+      game.exitNextStageStub();
+      hideTouchOnMenu();
+    });
   }
   if (domUi.sharkChoice) {
     domUi.sharkChoice.btnBack.addEventListener("click", () => game.sharkChoiceReturnBack());
@@ -7445,9 +7531,115 @@ function main() {
   }
   if (domUi.caveChaseLose) {
     domUi.caveChaseLose.btnTry.addEventListener("click", () => game.caveChaseTryAgain());
-    domUi.caveChaseLose.btnEnd.addEventListener("click", () => game.caveChaseFinish());
+    domUi.caveChaseLose.btnEnd.addEventListener("click", () => {
+      game.caveChaseFinish();
+      hideTouchOnMenu();
+    });
   }
   game.run();
+}
+
+/**
+ * Подключить тач-модуль к игре. Передаём Input и обработчик паузы.
+ */
+function _wireTouchControls(game) {
+  if (!window.TouchControls || typeof window.TouchControls.attach !== "function") return;
+  window.TouchControls.attach(game.input, {
+    onPause: () => {
+      // Эмулируем Escape, чтобы существующая логика паузы сработала.
+      if (game && game.input && typeof game.input.triggerVirtualEscape === "function") {
+        game.input.triggerVirtualEscape();
+      }
+    },
+  });
+}
+
+/**
+ * Регистрирует service worker для PWA.
+ *   - На localhost/file:// может не сработать — это нормально, молча уходим.
+ *   - При обновлении версии кэша в SW старые файлы вычистятся на activate.
+ */
+function _registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  // Не регистрируем при запуске по file:// — там SW не работает.
+  if (location && location.protocol === "file:") return;
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("service-worker.js").catch(() => {
+      // Тихо игнорируем — игра должна работать и без SW.
+    });
+  });
+}
+
+/**
+ * Подсказка «поверни экран».
+ *   - Показываем только: touch-устройство + portrait + настройка разрешает +
+ *     в этой сессии подсказку ещё не закрывали.
+ *   - «Продолжить» прячет подсказку до конца сессии.
+ *   - Если пользователь сам повернул экран — подсказка тоже уходит.
+ */
+const ROTATE_SESSION_KEY = "pearlHunt.rotateHintDismissed";
+let _rotateReady = false;
+
+function _initRotateHint(_getGameRun) {
+  const overlay = document.getElementById("rotate-overlay");
+  const btn = document.getElementById("btn-rotate-continue");
+  if (!overlay || !btn) return;
+  _rotateReady = true;
+
+  btn.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    _hideRotateHint();
+    try {
+      sessionStorage.setItem(ROTATE_SESSION_KEY, "1");
+    } catch (_e) {}
+  });
+
+  // Автоскрытие при повороте в landscape.
+  const onResize = () => {
+    if (overlay.hidden) return;
+    if (!_isPortrait()) _hideRotateHint();
+  };
+  window.addEventListener("resize", onResize);
+  window.addEventListener("orientationchange", onResize);
+}
+
+function _isPortrait() {
+  try {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    return h > w;
+  } catch (_e) {
+    return false;
+  }
+}
+
+function _isCoarsePointer() {
+  try {
+    return !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+  } catch (_e) {
+    return false;
+  }
+}
+
+function _maybeShowRotateHint() {
+  if (!_rotateReady) return;
+  if (!_isCoarsePointer()) return;
+  if (!_isPortrait()) return;
+  const s = window.AppSettings;
+  if (s && s.get && s.get("showRotateHint") === false) return;
+  try {
+    if (sessionStorage.getItem(ROTATE_SESSION_KEY) === "1") return;
+  } catch (_e) {}
+  const overlay = document.getElementById("rotate-overlay");
+  if (!overlay) return;
+  overlay.hidden = false;
+}
+
+function _hideRotateHint() {
+  const overlay = document.getElementById("rotate-overlay");
+  if (!overlay) return;
+  overlay.hidden = true;
 }
 
 /**
@@ -7466,6 +7658,7 @@ function _initSettingsPanel() {
   if (!overlay || !panel) return;
 
   const langButtons = overlay.querySelectorAll(".settings-lang__btn");
+  const segGroups = overlay.querySelectorAll(".seg[data-seg]");
 
   function _refreshLangButtons() {
     const cur =
@@ -7478,6 +7671,54 @@ function _initSettingsPanel() {
     });
   }
 
+  /**
+   * Сегментированный контрол: каждая кнопка имеет data-value, а группа —
+   * data-seg="ключ". Значение хранится в AppSettings.
+   * Для булевых полей (vibration, showRotateHint) data-value — "true"/"false".
+   */
+  function _segValue(key) {
+    if (!window.AppSettings || typeof window.AppSettings.get !== "function") return null;
+    const v = window.AppSettings.get(key);
+    if (v === true) return "true";
+    if (v === false) return "false";
+    return v == null ? null : String(v);
+  }
+
+  function _refreshSegButtons() {
+    segGroups.forEach((grp) => {
+      const key = grp.getAttribute("data-seg");
+      if (!key) return;
+      const cur = _segValue(key);
+      grp.querySelectorAll(".seg__btn").forEach((b) => {
+        const val = b.getAttribute("data-value");
+        b.setAttribute("aria-pressed", val === cur ? "true" : "false");
+      });
+    });
+  }
+
+  segGroups.forEach((grp) => {
+    const key = grp.getAttribute("data-seg");
+    if (!key) return;
+    grp.querySelectorAll(".seg__btn").forEach((b) => {
+      b.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        let val = b.getAttribute("data-value");
+        if (val === "true") val = true;
+        else if (val === "false") val = false;
+        if (window.AppSettings && typeof window.AppSettings.set === "function") {
+          window.AppSettings.set(key, val);
+        }
+        _refreshSegButtons();
+      });
+    });
+  });
+
+  // Если настройки изменятся извне — подсветить актуальные кнопки.
+  if (window.AppSettings && typeof window.AppSettings.onChange === "function") {
+    window.AppSettings.onChange(() => _refreshSegButtons());
+  }
+
   function open() {
     overlay.hidden = false;
     overlay.classList.remove("overlay--visible");
@@ -7485,6 +7726,7 @@ function _initSettingsPanel() {
     void overlay.offsetWidth;
     requestAnimationFrame(() => overlay.classList.add("overlay--visible"));
     _refreshLangButtons();
+    _refreshSegButtons();
   }
 
   function close() {

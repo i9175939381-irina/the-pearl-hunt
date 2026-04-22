@@ -2,7 +2,13 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#061525" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Жемчужины" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="cover.png" />
   <title data-i18n="meta.title">Охота за жемчужинами</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -57,6 +63,54 @@
         </label>
       </section>
 
+      <section class="settings-section settings-section--mobile-only" data-setting-group="controls">
+        <h3 class="settings-section__title" data-i18n="settings.section.controls">Управление</h3>
+
+        <div class="settings-row">
+          <span data-i18n="settings.handedness">Ведущая рука</span>
+          <div class="seg" role="group" data-seg="handedness">
+            <button type="button" class="seg__btn" data-value="right" data-i18n="settings.handedness.right">Правша</button>
+            <button type="button" class="seg__btn" data-value="left" data-i18n="settings.handedness.left">Левша</button>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <span data-i18n="settings.uiScale">Размер кнопок</span>
+          <div class="seg" role="group" data-seg="uiScale">
+            <button type="button" class="seg__btn" data-value="normal" data-i18n="settings.uiScale.normal">Обычный</button>
+            <button type="button" class="seg__btn" data-value="large" data-i18n="settings.uiScale.large">Крупный</button>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <span data-i18n="settings.vibration">Вибрация</span>
+          <div class="seg" role="group" data-seg="vibration">
+            <button type="button" class="seg__btn" data-value="true" data-i18n="settings.vibration.on">Вкл</button>
+            <button type="button" class="seg__btn" data-value="false" data-i18n="settings.vibration.off">Выкл</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h3 class="settings-section__title" data-i18n="settings.section.display">Отображение</h3>
+
+        <div class="settings-row">
+          <span data-i18n="settings.graphics">Графика</span>
+          <div class="seg" role="group" data-seg="graphicsQuality">
+            <button type="button" class="seg__btn" data-value="high" data-i18n="settings.graphics.high">Красиво</button>
+            <button type="button" class="seg__btn" data-value="eco" data-i18n="settings.graphics.eco">Экономно</button>
+          </div>
+        </div>
+
+        <div class="settings-row settings-section--mobile-only">
+          <span data-i18n="settings.rotateHint">Подсказка поворота</span>
+          <div class="seg" role="group" data-seg="showRotateHint">
+            <button type="button" class="seg__btn" data-value="true" data-i18n="settings.rotateHint.on">Показывать</button>
+            <button type="button" class="seg__btn" data-value="false" data-i18n="settings.rotateHint.off">Не показывать</button>
+          </div>
+        </div>
+      </section>
+
       <section class="settings-section">
         <h3 class="settings-section__title" data-i18n="settings.section.language">Язык</h3>
         <div class="settings-lang" role="group" aria-labelledby="settings-title">
@@ -69,6 +123,57 @@
         data-i18n="settings.close" data-i18n-attr="aria-label:settings.close.aria">Закрыть</button>
     </div>
   </div>
+
+  <!-- Оверлей подсказки повернуть экран (появляется на вертикальном мобильном
+       при первом запуске игры, если включено в настройках). -->
+  <div id="rotate-overlay" class="overlay overlay--rotate" hidden>
+    <div class="rotate-panel" role="dialog" aria-modal="true" aria-labelledby="rotate-title">
+      <div class="rotate-phone" aria-hidden="true">
+        <div class="rotate-phone__body"></div>
+        <div class="rotate-phone__arrow">
+          <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+            <path d="M32 6 C18 6 6 18 6 32" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <path d="M6 32 L2 26 M6 32 L12 28" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+      <h2 id="rotate-title" class="rotate-panel__title" data-i18n="rotate.title">Поверни экран</h2>
+      <p class="rotate-panel__text" data-i18n="rotate.text">В горизонтальном режиме играть удобнее.</p>
+      <button type="button" id="btn-rotate-continue" class="btn-primary" data-i18n="rotate.continue">Продолжить</button>
+    </div>
+  </div>
+
+  <!-- Корень тач-UI. CSS прячет его при (pointer: fine). Виден только когда
+       игра запущена и JS добавил класс .is-visible. -->
+  <div id="touch-controls" data-handedness="right" data-ui-scale="normal">
+    <div id="touch-joystick" class="touch-joystick" aria-label="Джойстик движения"
+      data-i18n-attr="aria-label:touch.joystick.aria">
+      <div class="touch-joystick__base"></div>
+      <div id="touch-joystick-knob" class="touch-joystick__knob"></div>
+    </div>
+
+    <button type="button" id="touch-boost" class="touch-boost"
+      aria-label="Ускорение" data-i18n-attr="aria-label:touch.boost.aria">
+      <span class="touch-boost__pearl" aria-hidden="true"></span>
+    </button>
+
+    <button type="button" id="touch-pause" class="touch-pause"
+      aria-label="Пауза" data-i18n-attr="aria-label:touch.pause.aria">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <rect x="6" y="5" width="4" height="14" rx="1.2" fill="currentColor"/>
+        <rect x="14" y="5" width="4" height="14" rx="1.2" fill="currentColor"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Шестерёнка во время игры: даёт доступ к настройкам после старта
+       (в том числе когда активна пауза). Скрыта, пока игра не запущена. -->
+  <button type="button" id="ingame-settings-gear" class="ingame-gear" hidden
+    aria-label="Настройки" data-i18n-attr="aria-label:start.settings">
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm8.94 4.3-.01-.3v-1l.01-.3 2-1.56a.5.5 0 0 0 .12-.63l-1.9-3.28a.5.5 0 0 0-.6-.22l-2.35.94a7.5 7.5 0 0 0-1.73-1l-.35-2.5A.5.5 0 0 0 15.6 2h-3.2a.5.5 0 0 0-.5.45l-.36 2.5a7.5 7.5 0 0 0-1.72 1l-2.35-.94a.5.5 0 0 0-.6.22l-1.9 3.28a.5.5 0 0 0 .12.63l2 1.56-.01.3v1l.01.3-2 1.56a.5.5 0 0 0-.12.63l1.9 3.28a.5.5 0 0 0 .6.22l2.35-.94c.53.41 1.11.75 1.72 1l.36 2.5a.5.5 0 0 0 .5.45h3.2a.5.5 0 0 0 .5-.45l.35-2.5c.61-.25 1.2-.59 1.73-1l2.35.94a.5.5 0 0 0 .6-.22l1.9-3.28a.5.5 0 0 0-.12-.63l-2-1.56z"/>
+    </svg>
+  </button>
 
   <div id="stage-overlay" class="overlay overlay--panel" hidden>
     <p class="panel-title" data-i18n="stage.offer.title">Ты готов нырнуть глубже?</p>
@@ -146,6 +251,7 @@
 
   <script src="settings.js"></script>
   <script src="i18n.js"></script>
+  <script src="touch-controls.js"></script>
   <script src="audio.js"></script>
   <script src="game.js" defer></script>
 </body>

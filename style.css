@@ -835,3 +835,449 @@ html[lang="en"] .game-title {
   margin-top: 0.25rem;
   min-width: 9rem;
 }
+
+/* ── Segmented-контрол (Правша/Левша, Обычный/Крупный и т.п.) ── */
+.seg {
+  display: inline-flex;
+  gap: 0.35rem;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.seg__btn {
+  cursor: pointer;
+  padding: 0.45rem 0.7rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(160, 220, 255, 0.3);
+  background: rgba(8, 28, 48, 0.55);
+  color: #e8fbff;
+  font-size: 0.88rem;
+  font-weight: 600;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.seg__btn:hover {
+  border-color: rgba(200, 240, 255, 0.65);
+  background: rgba(14, 44, 68, 0.75);
+}
+
+.seg__btn[aria-pressed="true"] {
+  border-color: rgba(255, 232, 170, 0.8);
+  background: linear-gradient(180deg, rgba(255, 230, 160, 0.22), rgba(100, 180, 220, 0.18));
+  color: #fff6e0;
+  box-shadow: 0 0 0 1px rgba(255, 232, 170, 0.45) inset,
+    0 0 14px rgba(255, 220, 140, 0.15);
+}
+
+.seg__btn:focus-visible {
+  outline: 2px solid #b8f0ff;
+  outline-offset: 2px;
+}
+
+/* Секции, релевантные только для touch-устройств (скрыть на ПК). */
+@media (pointer: fine) {
+  .settings-section--mobile-only {
+    display: none !important;
+  }
+  /* Размер-блок «Подсказка поворота» — тоже только для мобилок. */
+  .settings-row.settings-section--mobile-only {
+    display: none !important;
+  }
+}
+
+/* ── Оверлей подсказки поворота ── */
+#rotate-overlay {
+  z-index: 110;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(4, 20, 36, 0.88),
+    rgba(2, 10, 22, 0.96)
+  );
+}
+
+#rotate-overlay[hidden] {
+  display: none !important;
+}
+
+.rotate-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem 1.8rem;
+  border-radius: 1.2rem;
+  background: linear-gradient(180deg, rgba(8, 36, 58, 0.94), rgba(4, 20, 38, 0.98));
+  border: 1px solid rgba(130, 200, 235, 0.25);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+  max-width: min(22rem, 92vw);
+  text-align: center;
+}
+
+.rotate-panel__title {
+  margin: 0;
+  font-size: clamp(1.1rem, 4vw, 1.35rem);
+  font-weight: 600;
+  color: #eafaff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+
+.rotate-panel__text {
+  margin: 0;
+  font-size: 0.98rem;
+  color: #cfeaff;
+  line-height: 1.45;
+}
+
+.rotate-phone {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  color: #a7e7ff;
+}
+
+/* Телефон-иконка, «поворачивается» на 90° по анимации */
+.rotate-phone__body {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 36px;
+  height: 64px;
+  border-radius: 8px;
+  border: 3px solid currentColor;
+  transform: translate(-50%, -50%) rotate(0deg);
+  box-shadow:
+    0 0 14px rgba(120, 220, 255, 0.35),
+    inset 0 0 10px rgba(120, 220, 255, 0.2);
+  animation: rotate-phone-spin 1.8s ease-in-out infinite;
+  background: rgba(20, 70, 110, 0.4);
+}
+
+.rotate-phone__body::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  width: 10px;
+  height: 2px;
+  background: currentColor;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  opacity: 0.7;
+}
+
+.rotate-phone__arrow {
+  position: absolute;
+  left: -8px;
+  top: 14px;
+  width: 48px;
+  height: 48px;
+  opacity: 0;
+  animation: rotate-phone-arrow 1.8s ease-in-out infinite;
+  color: rgba(255, 220, 150, 0.9);
+}
+
+@keyframes rotate-phone-spin {
+  0%, 20% { transform: translate(-50%, -50%) rotate(0deg); }
+  60%, 100% { transform: translate(-50%, -50%) rotate(-90deg); }
+}
+
+@keyframes rotate-phone-arrow {
+  0%, 15% { opacity: 0; transform: rotate(0deg); }
+  35%, 75% { opacity: 1; }
+  85%, 100% { opacity: 0; transform: rotate(-45deg); }
+}
+
+/* ── Тач-управление (мобильные) ── */
+#touch-controls {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  /* Показываем только когда JS даёт класс is-visible. */
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  /* Запрещаем браузерный скролл/масштаб при драге внутри зоны управления. */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#touch-controls.is-visible {
+  opacity: 1;
+  /* Когда UI активен — ловим касания, чтобы работал динамический джойстик
+     в пустых зонах экрана. Модальные оверлеи имеют больший z-index и всё
+     равно перекроют нас. */
+  pointer-events: auto;
+}
+
+/* На десктопе с мышью — вообще не показываем. */
+@media (pointer: fine) {
+  #touch-controls {
+    display: none !important;
+  }
+}
+
+/* Динамический джойстик — «капля воды». */
+.touch-joystick {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 160px;
+  height: 160px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.14s ease;
+  --j-size: 160px;
+}
+
+#touch-controls[data-ui-scale="large"] .touch-joystick {
+  --j-size: 190px;
+  width: 190px;
+  height: 190px;
+}
+
+.touch-joystick.is-visible {
+  opacity: 1;
+}
+
+.touch-joystick__base {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  /* «Капля воды»: мягкая лёгкая заливка + блик сверху + лёгкая обводка. */
+  background:
+    radial-gradient(circle at 35% 28%, rgba(230, 250, 255, 0.55), rgba(140, 220, 255, 0.22) 34%, rgba(60, 140, 200, 0.15) 68%, rgba(40, 90, 140, 0.05) 100%);
+  border: 1.5px solid rgba(180, 230, 255, 0.45);
+  box-shadow:
+    0 0 22px rgba(120, 200, 255, 0.25),
+    inset 0 0 22px rgba(180, 230, 255, 0.28);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.touch-joystick__knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle at 30% 25%, #f8fdff 0%, #b7ebff 35%, #5cb8e5 72%, #266aa0 100%);
+  border: 1.5px solid rgba(200, 240, 255, 0.85);
+  box-shadow:
+    0 0 14px rgba(140, 220, 255, 0.55),
+    0 4px 10px rgba(0, 20, 40, 0.55),
+    inset 0 1px 2px rgba(255, 255, 255, 0.45);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+#touch-controls[data-ui-scale="large"] .touch-joystick__knob {
+  width: 70px;
+  height: 70px;
+}
+
+/* Кнопка ускорения — светящаяся жемчужина. */
+.touch-boost {
+  position: absolute;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  width: 92px;
+  height: 92px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 230, 170, 0.6);
+  background: transparent;
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
+  /* По умолчанию — слева (если джойстик справа, handedness=right). */
+  left: calc(1.2rem + env(safe-area-inset-left, 0px));
+}
+
+#touch-controls[data-handedness="left"] .touch-boost {
+  left: auto;
+  right: calc(1.2rem + env(safe-area-inset-right, 0px));
+}
+
+#touch-controls[data-ui-scale="large"] .touch-boost {
+  width: 108px;
+  height: 108px;
+}
+
+.touch-boost__pearl {
+  display: block;
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 28%, #fff8ea 0%, #ffe6a8 22%, #ffc57a 48%, #e89650 78%, #a4602e 100%);
+  box-shadow:
+    0 0 18px rgba(255, 210, 140, 0.65),
+    0 0 34px rgba(255, 180, 100, 0.35),
+    inset 0 1px 3px rgba(255, 255, 255, 0.55);
+  animation: boost-pearl-glow 2.6s ease-in-out infinite;
+}
+
+#touch-controls[data-ui-scale="large"] .touch-boost__pearl {
+  width: 78px;
+  height: 78px;
+}
+
+.touch-boost.is-active {
+  transform: scale(0.94);
+  box-shadow: 0 0 24px rgba(255, 220, 150, 0.7);
+}
+
+.touch-boost.is-active .touch-boost__pearl {
+  animation: none;
+  box-shadow:
+    0 0 26px rgba(255, 230, 160, 0.85),
+    0 0 52px rgba(255, 190, 120, 0.55),
+    inset 0 1px 3px rgba(255, 255, 255, 0.6);
+}
+
+@keyframes boost-pearl-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 16px rgba(255, 210, 140, 0.55),
+      0 0 30px rgba(255, 180, 100, 0.3),
+      inset 0 1px 3px rgba(255, 255, 255, 0.55);
+  }
+  50% {
+    box-shadow:
+      0 0 22px rgba(255, 225, 160, 0.75),
+      0 0 46px rgba(255, 200, 120, 0.45),
+      inset 0 1px 3px rgba(255, 255, 255, 0.6);
+  }
+}
+
+/* Маленькая кнопка паузы вверху. */
+.touch-pause {
+  position: absolute;
+  top: calc(0.6rem + env(safe-area-inset-top, 0px));
+  right: calc(0.6rem + env(safe-area-inset-right, 0px));
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(180, 230, 255, 0.35);
+  background: rgba(6, 28, 48, 0.55);
+  color: #dff6ff;
+  pointer-events: auto;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touch-pause svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* Адаптив вёрстки обложки и HUD для узких экранов (портрет на телефоне). */
+@media (max-width: 640px) {
+  .start-intro p {
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+
+  .game-title {
+    font-size: clamp(2.2rem, 10vw, 3.4rem);
+  }
+
+  .settings-panel {
+    padding: 1.1rem 1.1rem 1rem;
+    gap: 0.8rem;
+  }
+
+  .settings-row {
+    flex-wrap: wrap;
+  }
+
+  .settings-row > span {
+    flex: 1 0 100%;
+    min-width: 0;
+    margin-bottom: 0.15rem;
+  }
+
+  .seg {
+    justify-content: flex-start;
+    flex: 1 0 100%;
+  }
+}
+
+@media (orientation: portrait) and (pointer: coarse) {
+  .touch-boost {
+    bottom: calc(0.9rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ── Шестерёнка во время игры (доступ к настройкам из паузы). ── */
+.ingame-gear {
+  position: fixed;
+  top: calc(0.6rem + env(safe-area-inset-top, 0px));
+  /* На мобильных джойстик/пауза живут по углам — поэтому шестерёнка слева. */
+  left: calc(0.6rem + env(safe-area-inset-left, 0px));
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 1px solid rgba(180, 230, 255, 0.3);
+  border-radius: 50%;
+  background: rgba(6, 28, 48, 0.45);
+  color: #dff6ff;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  opacity: 0.72;
+  transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
+  z-index: 70;
+}
+
+.ingame-gear svg {
+  width: 1.3rem;
+  height: 1.3rem;
+  fill: currentColor;
+  transition: transform 0.4s ease;
+}
+
+.ingame-gear:hover {
+  opacity: 1;
+  background: rgba(12, 40, 62, 0.7);
+}
+
+.ingame-gear:hover svg {
+  transform: rotate(45deg);
+}
+
+.ingame-gear:focus-visible {
+  outline: 2px solid #b8f0ff;
+  outline-offset: 2px;
+}
+
+.ingame-gear[hidden] {
+  display: none !important;
+}
+
+/* На ПК шестерёнка — в правом верхнем углу (нет тач-кнопок там). */
+@media (pointer: fine) {
+  .ingame-gear {
+    left: auto;
+    right: calc(0.8rem + env(safe-area-inset-right, 0px));
+    width: 2.4rem;
+    height: 2.4rem;
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "Охота за жемчужинами",
+  "short_name": "Жемчужины",
+  "description": "Подводное приключение: собирай жемчужины и найди легендарную Чёрную жемчужину.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#061525",
+  "theme_color": "#061525",
+  "lang": "ru",
+  "categories": ["games", "kids"],
+  "icons": [
+    {
+      "src": "cover.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "cover.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
