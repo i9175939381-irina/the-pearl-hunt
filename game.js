@@ -1237,14 +1237,19 @@ class Pearl {
     const w = bounds.width;
     const h = bounds.height;
     // На узких экранах (мобильные) даём жемчужинам больше места по
-    // вертикали и требуем больший зазор между ними — так их становится
-    // видно «разбросанными», а не тесной горсткой.
+    // вертикали и требуем существенно больший зазор между ними —
+    // так их становится видно «разбросанными», а не тесной горсткой.
     const narrow = Math.min(w, h) < 620;
     const marginX = narrow ? 28 : 52;
     const marginBottom = narrow ? 36 : 52;
-    const minFromPlayer = 100;
-    const minGap = clusterFrom ? 20 : narrow ? 38 : 26;
-    const yMin = h * (narrow ? 0.42 : 0.52);
+    const minFromPlayer = narrow ? 110 : 100;
+    // Зазор на мобильном должен быть заметным, но не таким большим,
+    // чтобы в узкую полосу вообще нельзя было поместить жемчужину —
+    // иначе place() не найдёт место и всё свалится в центр экрана.
+    const minGap = clusterFrom ? 20 : narrow ? 40 : 26;
+    // На узких экранах используем больше вертикального пространства —
+    // жемчужины могут встречаться даже ближе к середине, а не только у дна.
+    const yMin = h * (narrow ? 0.36 : 0.52);
     const yMax = h - marginBottom - this.radius - 18;
     if (yMax <= yMin + 4) {
       this.x = w * 0.5;
@@ -1254,6 +1259,10 @@ class Pearl {
       return;
     }
 
+    // На узких экранах используем меньше полос (4 вместо 6): полосы
+    // становятся шире и пловец видит жемчужины действительно
+    // разбросанными, а не в 6 крохотных колонках.
+    const bandsCount = narrow ? 4 : 6;
     for (let attempt = 0; attempt < 72; attempt++) {
       let x;
       let y;
@@ -1261,7 +1270,7 @@ class Pearl {
         x = clusterFrom.x + (Math.random() - 0.5) * 34;
         y = clusterFrom.y + (Math.random() - 0.5) * 22;
       } else if (bandHint != null) {
-        const nb = 6;
+        const nb = bandsCount;
         const innerW = w - marginX * 2 - this.radius * 2;
         const bw = Math.max(24, innerW / nb);
         const bi = ((bandHint % nb) + Math.floor(attempt / 20)) % nb;
@@ -1314,13 +1323,41 @@ class Pearl {
       this._respawnCountdown -= dt;
       if (this._respawnCountdown <= 0) {
         this._resetMotion();
-        this.place(
-          bounds,
-          player,
-          allPearls,
-          null,
-          Math.floor(Math.random() * 6)
-        );
+        // Подсказываем полосу, в которой меньше всего активных жемчужин,
+        // чтобы при респавне они не оседали в одном углу.
+        const w = bounds.width;
+        const narrow = Math.min(w, bounds.height) < 620;
+        const nb = narrow ? 4 : 6;
+        const marginX = narrow ? 28 : 52;
+        const innerW = Math.max(1, w - marginX * 2 - this.radius * 2);
+        const bw = Math.max(24, innerW / nb);
+        const bandCount = new Array(nb).fill(0);
+        for (const o of allPearls) {
+          if (o === this) continue;
+          if (o.active === false) continue;
+          const bi = Math.max(
+            0,
+            Math.min(
+              nb - 1,
+              Math.floor((o.x - marginX - this.radius) / bw)
+            )
+          );
+          bandCount[bi] += 1;
+        }
+        let minCount = Infinity;
+        const candidates = [];
+        for (let bi = 0; bi < nb; bi++) {
+          if (bandCount[bi] < minCount) {
+            minCount = bandCount[bi];
+            candidates.length = 0;
+            candidates.push(bi);
+          } else if (bandCount[bi] === minCount) {
+            candidates.push(bi);
+          }
+        }
+        const bandHint =
+          candidates[Math.floor(Math.random() * candidates.length)] || 0;
+        this.place(bounds, player, allPearls, null, bandHint);
         this.active = true;
       }
       return;
@@ -3550,25 +3587,33 @@ class Game {
     this._shipHunt.ay = this.player.y;
     this._shipHunt.dirX = dx;
     this._shipHunt.dirY = dy;
-    // Пловец ограничен canvas, поэтому в мировых координатах он может сдвинуться
-    // максимум на (w/2 - padX) вдоль dx. Жемчужина должна попадать в эту зону,
-    // но чуть короче — чтобы игрок реально «возвращался» к ней, а не упирался в стену.
-    const padX = this.player.halfW + 36;
-    const padY = this.player.halfH + 44;
-    const roomX = Math.abs(dx) > 0.05
-      ? (b.width * 0.5 - padX) / Math.abs(dx)
+    // Математика досягаемости финальной жемчужины. Пловец ограничен
+    // канвасом: максимум по X — (w/2 - halfW), по Y — (h/2 - halfH).
+    // Плюс радиус подбора 84 px (PICKUP_R), т.е. жемчужина может быть
+    // даже на ~80 px ЗА краем канваса, и игрок всё равно её достанет,
+    // прислонившись к стенке. Берём с запасом ~PICKUP_R * 0.6 = 50.
+    const PICKUP_R = 84;
+    const reachMarginX = PICKUP_R * 0.6;
+    const reachMarginY = PICKUP_R * 0.6;
+    const halfW = this.player.halfW;
+    const halfH = this.player.halfH;
+    const maxReachX = Math.abs(dx) > 0.05
+      ? (b.width * 0.5 - halfW + reachMarginX) / Math.abs(dx)
       : Infinity;
-    const roomY = Math.abs(dy) > 0.05
-      ? (b.height * 0.5 - padY) / Math.abs(dy)
+    const maxReachY = Math.abs(dy) > 0.05
+      ? (b.height * 0.5 - halfH + reachMarginY) / Math.abs(dy)
       : Infinity;
-    // Жёсткий минимум 220 ломал финал на узких экранах (мобильный
-    // портрет 360 × 640): доступный ход вбок получался ~110 px, а
-    // жемчужина ставилась на 220 — пловец физически не мог доплыть и
-    // выглядело как «стена». Теперь жемчужина всегда строго внутри
-    // досягаемой зоны.
-    const safeProj = Math.max(140, Math.min(roomX, roomY));
-    const cap = Math.min(safeProj * 0.9, 520);
-    const floor = Math.min(safeProj * 0.55, 220);
+    // safeProj — максимальный проект, при котором жемчужина ещё достижима.
+    // На узких экранах может получиться меньше 220 — раньше жёсткий
+    // минимум 220 буквально ставил жемчужину за пределами зоны подбора
+    // и создавал ощущение «стены». Не ставим искусственный пол: пусть
+    // на мобильнике финал будет короче, но гарантированно проходим.
+    const safeProj = Math.max(80, Math.min(maxReachX, maxReachY));
+    // Берём не более 85 % от безопасной зоны (запас на мелкий дрифт
+    // и вертикальный компонент). И верхний предел ~520 — чтобы на
+    // огромном мониторе жемчужина не ехала через пол-экрана.
+    const cap = Math.min(safeProj * 0.85, 520);
+    const floor = Math.min(safeProj * 0.6, 220);
     const desiredProj = cap * (0.78 + Math.random() * 0.18);
     this._shipHunt.pearlProj = Math.max(floor, Math.min(desiredProj, cap));
     this._shipHunt.pearlProjHome = this._shipHunt.pearlProj;
