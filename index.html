@@ -119,6 +119,9 @@
         </div>
       </section>
 
+      <button type="button" id="btn-settings-exit" class="btn-secondary btn-settings-exit" hidden
+        data-i18n="settings.exit">Выйти в меню</button>
+
       <button type="button" id="btn-settings-close" class="btn-primary btn-settings-close"
         data-i18n="settings.close" data-i18n-attr="aria-label:settings.close.aria">Закрыть</button>
     </div>
@@ -150,6 +153,13 @@
       data-i18n-attr="aria-label:touch.joystick.aria">
       <div class="touch-joystick__base"></div>
       <div id="touch-joystick-knob" class="touch-joystick__knob"></div>
+    </div>
+
+    <!-- Ненавязчивая подсказка-«капелька» для тех, кто впервые на мобильном.
+         Показывается, пока игрок ни разу не коснулся зоны джойстика. -->
+    <div id="touch-joystick-hint" class="touch-joystick-hint" aria-hidden="true">
+      <div class="touch-joystick-hint__drop"></div>
+      <div class="touch-joystick-hint__label" data-i18n="touch.joystick.hint">Коснись и тяни</div>
     </div>
 
     <button type="button" id="touch-boost" class="touch-boost"

@@ -44,6 +44,8 @@
     pauseEl: null,
     rootEl: null,
     rotateEl: null,
+    hintEl: null,
+    hintDismissed: false,
     vibrate: true,
   };
 
@@ -152,6 +154,9 @@
         STATE.joystick.touchId = t.identifier;
         _placeJoystickAt(t.clientX, t.clientY);
         STATE.joystick.el.classList.add("is-visible");
+        // Первый контакт с зоной джойстика — убираем подсказку навсегда
+        // в этой сессии.
+        _dismissHint();
         if (STATE.input && typeof STATE.input.setVirtualAxes === "function") {
           STATE.input.setVirtualAxes(0, 0, true);
         }
@@ -207,12 +212,19 @@
     }
   }
 
+  function _dismissHint() {
+    if (STATE.hintDismissed) return;
+    STATE.hintDismissed = true;
+    if (STATE.hintEl) STATE.hintEl.classList.add("is-hidden");
+  }
+
   function _wireDom() {
     STATE.rootEl = global.document.getElementById("touch-controls");
     STATE.joystick.el = global.document.getElementById("touch-joystick");
     STATE.joystick.knob = global.document.getElementById("touch-joystick-knob");
     STATE.boost.el = global.document.getElementById("touch-boost");
     STATE.pauseEl = global.document.getElementById("touch-pause");
+    STATE.hintEl = global.document.getElementById("touch-joystick-hint");
     STATE.rotateEl = global.document.getElementById("rotate-overlay");
     if (!STATE.rootEl) return;
 
@@ -258,6 +270,15 @@
     if (STATE.rootEl) {
       if (STATE.active) STATE.rootEl.classList.add("is-visible");
       else STATE.rootEl.classList.remove("is-visible");
+    }
+    // Показ подсказки-«капельки» — только при активации и пока она не
+    // была отклонена в этой сессии.
+    if (STATE.hintEl) {
+      if (STATE.active && !STATE.hintDismissed) {
+        STATE.hintEl.classList.remove("is-hidden");
+      } else {
+        STATE.hintEl.classList.add("is-hidden");
+      }
     }
     // На всякий случай сбросим виртуальные оси и boost при скрытии.
     if (!STATE.active && STATE.input) {

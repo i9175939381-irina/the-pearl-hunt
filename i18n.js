@@ -70,6 +70,7 @@
       "settings.lang.en": "English",
       "settings.close": "Закрыть",
       "settings.close.aria": "Закрыть настройки",
+      "settings.exit": "Выйти в меню",
 
       // Подсказка поворота экрана (для мобильных)
       "rotate.title": "Поверни экран",
@@ -80,6 +81,7 @@
       "touch.boost.aria": "Ускорение",
       "touch.pause.aria": "Пауза",
       "touch.joystick.aria": "Джойстик движения",
+      "touch.joystick.hint": "Коснись и тяни",
 
       // Переходы между этапами
       "stage.offer.title": "Ты готов нырнуть глубже?",
@@ -259,6 +261,7 @@
       "settings.lang.en": "English",
       "settings.close": "Close",
       "settings.close.aria": "Close settings",
+      "settings.exit": "Back to menu",
 
       // Rotate screen hint (mobile)
       "rotate.title": "Rotate your screen",
@@ -269,6 +272,7 @@
       "touch.boost.aria": "Boost",
       "touch.pause.aria": "Pause",
       "touch.joystick.aria": "Movement joystick",
+      "touch.joystick.hint": "Touch and drag",
 
       // Stage offer
       "stage.offer.title": "Ready to dive deeper?",

@@ -1082,11 +1082,12 @@ html[lang="en"] .game-title {
 .touch-boost {
   position: absolute;
   bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
-  width: 92px;
-  height: 92px;
+  /* Обычный размер: ~64px, не занимает пол-экрана на маленьких телефонах. */
+  width: 64px;
+  height: 64px;
   padding: 0;
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 230, 170, 0.6);
+  border: 1.5px solid rgba(255, 230, 170, 0.55);
   background: transparent;
   pointer-events: auto;
   cursor: pointer;
@@ -1106,27 +1107,23 @@ html[lang="en"] .game-title {
 }
 
 #touch-controls[data-ui-scale="large"] .touch-boost {
-  width: 108px;
-  height: 108px;
+  width: 86px;
+  height: 86px;
 }
 
 .touch-boost__pearl {
   display: block;
-  width: 66px;
-  height: 66px;
+  /* Сама жемчужина занимает ~75% кнопки, с отступом для рамки. */
+  width: 72%;
+  height: 72%;
   border-radius: 50%;
   background:
     radial-gradient(circle at 30% 28%, #fff8ea 0%, #ffe6a8 22%, #ffc57a 48%, #e89650 78%, #a4602e 100%);
   box-shadow:
-    0 0 18px rgba(255, 210, 140, 0.65),
-    0 0 34px rgba(255, 180, 100, 0.35),
-    inset 0 1px 3px rgba(255, 255, 255, 0.55);
+    0 0 14px rgba(255, 210, 140, 0.55),
+    0 0 26px rgba(255, 180, 100, 0.28),
+    inset 0 1px 3px rgba(255, 255, 255, 0.5);
   animation: boost-pearl-glow 2.6s ease-in-out infinite;
-}
-
-#touch-controls[data-ui-scale="large"] .touch-boost__pearl {
-  width: 78px;
-  height: 78px;
 }
 
 .touch-boost.is-active {
@@ -1145,16 +1142,108 @@ html[lang="en"] .game-title {
 @keyframes boost-pearl-glow {
   0%, 100% {
     box-shadow:
-      0 0 16px rgba(255, 210, 140, 0.55),
-      0 0 30px rgba(255, 180, 100, 0.3),
-      inset 0 1px 3px rgba(255, 255, 255, 0.55);
+      0 0 12px rgba(255, 210, 140, 0.5),
+      0 0 22px rgba(255, 180, 100, 0.25),
+      inset 0 1px 3px rgba(255, 255, 255, 0.5);
   }
   50% {
     box-shadow:
-      0 0 22px rgba(255, 225, 160, 0.75),
-      0 0 46px rgba(255, 200, 120, 0.45),
-      inset 0 1px 3px rgba(255, 255, 255, 0.6);
+      0 0 18px rgba(255, 225, 160, 0.7),
+      0 0 36px rgba(255, 200, 120, 0.4),
+      inset 0 1px 3px rgba(255, 255, 255, 0.55);
   }
+}
+
+/* ── Подсказка «Коснись и тяни» на стороне джойстика ──
+   Появляется при первом запуске игры на мобильном, пока игрок не трогал
+   джойстик. Плавно пульсирует, чтобы привлечь внимание. После первого
+   касания джойстика JS добавляет класс is-hidden и подсказка исчезает
+   навсегда в этой сессии. */
+.touch-joystick-hint {
+  position: absolute;
+  bottom: clamp(4.5rem, 22vh, 7rem);
+  width: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  pointer-events: none;
+  opacity: 0.85;
+  transition: opacity 0.6s ease;
+  /* По умолчанию джойстик справа — подсказка тоже справа. */
+  right: clamp(1.5rem, 10vw, 3rem);
+  left: auto;
+}
+
+#touch-controls[data-handedness="left"] .touch-joystick-hint {
+  right: auto;
+  left: clamp(1.5rem, 10vw, 3rem);
+}
+
+.touch-joystick-hint.is-hidden {
+  opacity: 0;
+}
+
+.touch-joystick-hint__drop {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 1.5px dashed rgba(190, 240, 255, 0.7);
+  background: radial-gradient(
+    circle at 35% 28%,
+    rgba(230, 250, 255, 0.32),
+    rgba(140, 220, 255, 0.12) 50%,
+    rgba(60, 140, 200, 0.05) 80%,
+    rgba(40, 90, 140, 0) 100%
+  );
+  box-shadow:
+    0 0 20px rgba(140, 220, 255, 0.35),
+    inset 0 0 16px rgba(180, 230, 255, 0.22);
+  animation: joystick-hint-pulse 1.8s ease-in-out infinite;
+}
+
+.touch-joystick-hint__label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(220, 245, 255, 0.92);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+  text-align: center;
+  opacity: 0.9;
+}
+
+@keyframes joystick-hint-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow:
+      0 0 18px rgba(140, 220, 255, 0.28),
+      inset 0 0 14px rgba(180, 230, 255, 0.18);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow:
+      0 0 28px rgba(160, 230, 255, 0.55),
+      inset 0 0 22px rgba(200, 240, 255, 0.3);
+  }
+}
+
+/* Кнопка «Выйти в меню» в настройках — видна только когда игра идёт. */
+.btn-settings-exit {
+  align-self: center;
+  margin-top: 0.25rem;
+  min-width: 9rem;
+  background: rgba(40, 16, 22, 0.7);
+  border: 1px solid rgba(255, 180, 180, 0.35);
+  color: #ffd8d8;
+}
+
+.btn-settings-exit:hover {
+  background: rgba(60, 22, 28, 0.8);
+  border-color: rgba(255, 200, 200, 0.55);
+}
+
+.btn-settings-exit[hidden] {
+  display: none !important;
 }
 
 /* Маленькая кнопка паузы вверху. */

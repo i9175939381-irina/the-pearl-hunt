@@ -1021,12 +1021,21 @@ class Player {
     const maxSp = (boost ? 352 : this.maxSpeed) * sc;
     const drag = boost ? 2.75 : this.drag + (sc < 1 ? (1 - sc) * 0.45 : 0);
 
+    // Приём ввода:
+    //  • клавиатура/стрелки всегда дают векторы длиной 0 или 1 (или √2
+    //    по диагонали) — их нужно нормализовать до 1, иначе по диагонали
+    //    разгон быстрее.
+    //  • виртуальный джойстик даёт длину в [0..1] (доля полного тилта).
+    //    Эту долю сохраняем как есть — это и есть аналоговое управление:
+    //    малый наклон = малый разгон (для точного подбора жемчужин).
+    //  • маленькая мёртвая зона, чтобы исключить дрожание пальца у центра.
     const len = Math.hypot(axes.x, axes.y);
     let ix = 0;
     let iy = 0;
-    if (len > 0) {
-      ix = axes.x / len;
-      iy = axes.y / len;
+    if (len > 0.08) {
+      const scale = len > 1 ? 1 / len : 1;
+      ix = axes.x * scale;
+      iy = axes.y * scale;
     }
     this.vx += ix * accel * dt;
     this.vy += iy * accel * dt;
@@ -7456,6 +7465,11 @@ function main() {
 
   const game = new Game(canvas, overlay, domUi, gameAudio);
 
+  // ── Признак, что игра запущена (не на обложке). Нужен, чтобы:
+  //   1) показывать в настройках кнопку «Выйти в меню» только во время игры;
+  //   2) триггерить rotate-подсказку при повороте в портрет посреди партии.
+  let _gameActive = false;
+
   // ── Мобильный тач-ввод: подключаем модуль к Input. Если устройство не
   // тач (pointer: fine) — модуль работает «вхолостую», DOM прячется через CSS.
   _wireTouchControls(game);
@@ -7482,23 +7496,65 @@ function main() {
 
   // При старте — показать тач-UI, при возврате в меню — спрятать.
   const showTouchOnStart = () => {
+    _gameActive = true;
     if (window.TouchControls && typeof window.TouchControls.setVisible === "function") {
       window.TouchControls.setVisible(true);
     }
     if (ingameGear) ingameGear.hidden = false;
     _maybeShowRotateHint();
+    _syncSettingsExitVisibility(_gameActive);
   };
   const hideTouchOnMenu = () => {
+    _gameActive = false;
     if (window.TouchControls && typeof window.TouchControls.setVisible === "function") {
       window.TouchControls.setVisible(false);
     }
     if (ingameGear) ingameGear.hidden = true;
+    _syncSettingsExitVisibility(_gameActive);
   };
 
   btn.addEventListener("click", () => {
+    // Принудительно «разбудить» аудио: Android Chrome требует user gesture,
+    // и иногда audio.resume() недостаточно — сыграем короткий безмолвный
+    // буфер, чтобы AudioContext точно перешёл в running.
+    _forceAudioUnlock(gameAudio);
+    // Попросим полноэкранный режим, чтобы на Android Chrome скрылась
+    // шапка браузера. iOS Safari это не поддерживает — будет no-op.
+    _requestFullscreenIfPossible();
     game.startFromMenu();
     showTouchOnStart();
   });
+
+  // ── Кнопка «Выйти в меню» в панели настроек: работает только во время игры.
+  const btnSettingsExit = document.getElementById("btn-settings-exit");
+  if (btnSettingsExit) {
+    btnSettingsExit.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      // Сначала закрываем настройки, потом возвращаем игру в меню.
+      const closeBtn = document.getElementById("btn-settings-close");
+      if (closeBtn) closeBtn.click();
+      if (game && typeof game.returnToMenu === "function") {
+        game.returnToMenu();
+      }
+      hideTouchOnMenu();
+    });
+  }
+
+  function _syncSettingsExitVisibility(active) {
+    if (!btnSettingsExit) return;
+    btnSettingsExit.hidden = !active;
+  }
+  _syncSettingsExitVisibility(false);
+
+  // Если игрок повернул телефон в портрет во время игры — тоже показать
+  // подсказку (если она ещё не была закрыта в этой сессии).
+  const _onOrientationMaybeHint = () => {
+    if (!_gameActive) return;
+    _maybeShowRotateHint();
+  };
+  window.addEventListener("orientationchange", _onOrientationMaybeHint);
+  window.addEventListener("resize", _onOrientationMaybeHint);
 
   if (domUi.lose) domUi.lose.btn.addEventListener("click", () => game.retryFromLose());
   if (domUi.stageOffer) {
@@ -7537,6 +7593,55 @@ function main() {
     });
   }
   game.run();
+}
+
+/**
+ * Запрос полноэкранного режима: нужен, чтобы на Android Chrome исчезла
+ * верхняя шапка браузера и нижняя панель системы. Вызывается ТОЛЬКО в
+ * обработчике пользовательского жеста (кнопка «Погрузиться»).
+ *   - iOS Safari полноэкранный режим не поддерживает для обычной страницы,
+ *     только для <video>. Там это no-op — помочь может «Добавить на главный
+ *     экран» (PWA-режим через manifest).
+ *   - Если пользователь уже в fullscreen — ничего не делаем.
+ */
+function _requestFullscreenIfPossible() {
+  try {
+    if (document.fullscreenElement || document.webkitFullscreenElement) return;
+    const el = document.documentElement;
+    const req =
+      el.requestFullscreen ||
+      el.webkitRequestFullscreen ||
+      el.mozRequestFullScreen ||
+      el.msRequestFullscreen;
+    if (!req) return;
+    const res = req.call(el);
+    if (res && typeof res.catch === "function") res.catch(() => {});
+  } catch (_e) {
+    // no-op — игра должна работать и без fullscreen
+  }
+}
+
+/**
+ * «Разбудить» аудио на Android Chrome: помимо gameAudio.resume() проиграем
+ * короткий пустой буфер. Без этого на некоторых Android-устройствах
+ * AudioContext формально resumed, но первые звуки всё равно заглушены.
+ */
+function _forceAudioUnlock(gameAudio) {
+  try {
+    if (!gameAudio || typeof gameAudio.resume !== "function") return;
+    gameAudio.resume();
+    const ctx =
+      gameAudio._ctx || gameAudio.ctx || gameAudio.audioContext || null;
+    if (!ctx || typeof ctx.createBuffer !== "function") return;
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    if (typeof src.start === "function") src.start(0);
+    else if (typeof src.noteOn === "function") src.noteOn(0);
+  } catch (_e) {
+    // no-op
+  }
 }
 
 /**
