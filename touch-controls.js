@@ -186,13 +186,27 @@
         let dy = t.clientY - j.cy;
         const len = Math.hypot(dx, dy);
         const mr = j.maxR;
+        // Клэмп визуальной ручки — чтобы она не ехала за пределы базы.
+        let kx = dx;
+        let ky = dy;
         if (len > mr) {
-          dx = (dx / len) * mr;
-          dy = (dy / len) * mr;
+          kx = (dx / len) * mr;
+          ky = (dy / len) * mr;
         }
-        _placeKnob(dx, dy);
+        _placeKnob(kx, ky);
+        // Скорость игрока: «полный газ» достигается уже на 60 % радиуса —
+        // так палец не должен тянуться через всю ладонь, чтобы поплыть
+        // быстро. За пределами visual-радиуса просто держится 100 %.
         if (STATE.input && typeof STATE.input.setVirtualAxes === "function") {
-          STATE.input.setVirtualAxes(dx / mr, dy / mr, true);
+          const speedR = mr * 0.6;
+          let ax = dx / speedR;
+          let ay = dy / speedR;
+          const am = Math.hypot(ax, ay);
+          if (am > 1) {
+            ax /= am;
+            ay /= am;
+          }
+          STATE.input.setVirtualAxes(ax, ay, true);
         }
         // Копим «использование» джойстика — когда накопится достаточно,
         // подсказка уходит. Это намного лучше, чем прятать её по первому

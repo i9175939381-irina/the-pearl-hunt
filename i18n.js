@@ -73,7 +73,9 @@
       "settings.lang.en": "English",
       "settings.close": "Закрыть",
       "settings.close.aria": "Закрыть настройки",
-      "settings.exit": "Выйти из игры",
+      "settings.exit": "Выйти в меню",
+      "settings.quit": "Закрыть приложение",
+      "settings.quit.hint": "Если приложение не закрылось автоматически — закройте его жестом ОС (на Android: кнопкой «Назад» или из списка недавних приложений; на iPhone: жестом «наверх»).",
 
       // Подсказка поворота экрана (для мобильных)
       "rotate.title": "Поверни экран",
@@ -272,7 +274,9 @@
       "settings.lang.en": "English",
       "settings.close": "Close",
       "settings.close.aria": "Close settings",
-      "settings.exit": "Exit game",
+      "settings.exit": "Back to menu",
+      "settings.quit": "Close app",
+      "settings.quit.hint": "If the app did not close automatically, please close it with an OS gesture (Android: Back button or Recents; iPhone: swipe up).",
 
       // Rotate screen hint (mobile)
       "rotate.title": "Rotate your screen",

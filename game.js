@@ -1023,23 +1023,21 @@ class Player {
 
     // Приём ввода:
     //  • клавиатура/стрелки дают векторы длиной 1 (или √2 по диагонали) —
-    //    тут важна нормализация, чтобы по диагонали не разгонялось быстрее.
-    //  • виртуальный джойстик — длина в [0..1] (доля тилта). На неё мы
-    //    накладываем sqrt-кривую: малый наклон = заметный разгон, полный
-    //    наклон = разгон на 100 %. Это лечит ощущение «мёртвой зоны» —
-    //    крохотное движение пальцем уже ощутимо сдвигает пловца, но
-    //    крупные наклоны не разгоняют сильнее положенного.
+    //    нормализуем, чтобы по диагонали не разгонялось быстрее.
+    //  • виртуальный джойстик уже нормализован в [-1..1] на стороне
+    //    touch-controls.js (100 % скорости достигается на 60 % тяги), так
+    //    что дополнительная кривая здесь не нужна — она лишь даёт
+    //    ощущение «вялости». Используем почти линейный отклик.
     //  • почти без мёртвой зоны (только от дрожи).
     const len = Math.hypot(axes.x, axes.y);
     let ix = 0;
     let iy = 0;
     if (len > 0.02) {
       const mag = Math.min(1, len);
-      const curve = Math.sqrt(mag);
       const nx = axes.x / len;
       const ny = axes.y / len;
-      ix = nx * curve;
-      iy = ny * curve;
+      ix = nx * mag;
+      iy = ny * mag;
     }
     this.vx += ix * accel * dt;
     this.vy += iy * accel * dt;
@@ -1236,13 +1234,17 @@ class Pearl {
    * @param {number | null} bandHint колонка 0…5 для равномерного разнесения по X
    */
   place(bounds, player, others, clusterFrom = null, bandHint = null) {
-    const marginX = 52;
-    const marginBottom = 52;
-    const minFromPlayer = 100;
-    const minGap = clusterFrom ? 20 : 26;
     const w = bounds.width;
     const h = bounds.height;
-    const yMin = h * 0.52;
+    // На узких экранах (мобильные) даём жемчужинам больше места по
+    // вертикали и требуем больший зазор между ними — так их становится
+    // видно «разбросанными», а не тесной горсткой.
+    const narrow = Math.min(w, h) < 620;
+    const marginX = narrow ? 28 : 52;
+    const marginBottom = narrow ? 36 : 52;
+    const minFromPlayer = 100;
+    const minGap = clusterFrom ? 20 : narrow ? 38 : 26;
+    const yMin = h * (narrow ? 0.42 : 0.52);
     const yMax = h - marginBottom - this.radius - 18;
     if (yMax <= yMin + 4) {
       this.x = w * 0.5;
@@ -2648,10 +2650,14 @@ class Game {
 
     const bounds = this.renderer.bounds;
     this.pearls = [];
+    // На узких экранах (мобильные) кучкование делает жемчужины тесной
+    // группой — неинтересно и неудобно. Там раскидываем только по полосам.
+    const narrow = Math.min(bounds.width, bounds.height) < 620;
     let clusterAnchor = null;
     for (let i = 0; i < PEARL_POOL; i++) {
       const p = new Pearl();
-      const useCluster = clusterAnchor !== null && i > 0 && Math.random() < 0.24;
+      const useCluster =
+        !narrow && clusterAnchor !== null && i > 0 && Math.random() < 0.18;
       p.place(
         bounds,
         this.player,
@@ -3555,11 +3561,16 @@ class Game {
     const roomY = Math.abs(dy) > 0.05
       ? (b.height * 0.5 - padY) / Math.abs(dy)
       : Infinity;
-    const safeProj = Math.max(220, Math.min(roomX, roomY));
-    // Желаемая длина охоты подстраивается под доступное место: жемчужина
-    // всегда появляется чуть ближе правого края, потом скроллится к центру.
-    const desiredProj = Math.min(safeProj * 0.78, 520) * (0.82 + Math.random() * 0.18);
-    this._shipHunt.pearlProj = Math.max(220, Math.min(desiredProj, safeProj));
+    // Жёсткий минимум 220 ломал финал на узких экранах (мобильный
+    // портрет 360 × 640): доступный ход вбок получался ~110 px, а
+    // жемчужина ставилась на 220 — пловец физически не мог доплыть и
+    // выглядело как «стена». Теперь жемчужина всегда строго внутри
+    // досягаемой зоны.
+    const safeProj = Math.max(140, Math.min(roomX, roomY));
+    const cap = Math.min(safeProj * 0.9, 520);
+    const floor = Math.min(safeProj * 0.55, 220);
+    const desiredProj = cap * (0.78 + Math.random() * 0.18);
+    this._shipHunt.pearlProj = Math.max(floor, Math.min(desiredProj, cap));
     this._shipHunt.pearlProjHome = this._shipHunt.pearlProj;
     this._shipHunt.laneHalfW = 135 + Math.random() * 24;
     this._shipHunt.missed = false;
@@ -7613,6 +7624,40 @@ function main() {
   }
   _syncSettingsExitVisibility(false);
 
+  // ── Кнопка «Закрыть приложение»: доступна всегда (и в меню, и в игре).
+  //   • В PWA standalone на Android window.close() обычно срабатывает —
+  //     приложение закрывается.
+  //   • В обычной вкладке браузера window.close() не сработает (политика
+  //     безопасности), поэтому показываем пользователю честную подсказку,
+  //     как закрыть игру средствами ОС.
+  const btnSettingsQuit = document.getElementById("btn-settings-quit");
+  if (btnSettingsQuit) {
+    btnSettingsQuit.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      try {
+        window.close();
+      } catch (_err) {
+        /* ignore */
+      }
+      // Если через 120 мс окно всё ещё открыто — значит браузер
+      // отказался закрывать страницу. Показываем инструкцию.
+      setTimeout(() => {
+        if (window.closed) return;
+        const hint =
+          (window.i18n && typeof window.i18n.t === "function"
+            ? window.i18n.t("settings.quit.hint")
+            : null) ||
+          "Закройте приложение жестом операционной системы.";
+        try {
+          alert(hint);
+        } catch (_err2) {
+          /* ignore */
+        }
+      }, 120);
+    });
+  }
+
   // Если игрок повернул телефон в портрет во время игры — тоже показать
   // подсказку (если она ещё не была закрыта в этой сессии).
   const _onOrientationMaybeHint = () => {
@@ -7735,8 +7780,56 @@ function _registerServiceWorker() {
   // Не регистрируем при запуске по file:// — там SW не работает.
   if (location && location.protocol === "file:") return;
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js").catch(() => {
-      // Тихо игнорируем — игра должна работать и без SW.
+    navigator.serviceWorker
+      .register("service-worker.js")
+      .then((reg) => {
+        if (!reg) return;
+        // Если уже есть ожидающий SW — сразу активируем (старые клиенты).
+        if (reg.waiting) {
+          try {
+            reg.waiting.postMessage({ type: "SKIP_WAITING" });
+          } catch (_err) {
+            /* noop */
+          }
+        }
+        // Когда появляется новая версия — как только она «installed» и
+        // перекрывает старую, мягко перезагружаем страницу один раз,
+        // чтобы пользователь получил актуальную игру без «химеры».
+        reg.addEventListener("updatefound", () => {
+          const nw = reg.installing;
+          if (!nw) return;
+          nw.addEventListener("statechange", () => {
+            if (
+              nw.state === "installed" &&
+              navigator.serviceWorker.controller
+            ) {
+              try {
+                nw.postMessage({ type: "SKIP_WAITING" });
+              } catch (_err) {
+                /* noop */
+              }
+            }
+          });
+        });
+      })
+      .catch(() => {
+        // Тихо игнорируем — игра должна работать и без SW.
+      });
+
+    // Когда активный SW меняется (новая версия вступила в силу) —
+    // перезагружаемся один раз, чтобы все скрипты стали согласованы.
+    let _reloadedForSwUpdate = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (_reloadedForSwUpdate) return;
+      _reloadedForSwUpdate = true;
+      // Небольшая задержка, чтобы iOS успел переключить контроллер.
+      setTimeout(() => {
+        try {
+          window.location.reload();
+        } catch (_err) {
+          /* noop */
+        }
+      }, 50);
     });
   });
 }
