@@ -176,6 +176,7 @@
       // Пауза (на канве)
       "pause.title": "Пауза",
       "pause.hint": "Нажмите Esc, чтобы продолжить",
+      "pause.hint.touch": "Коснитесь ▐▐ в углу, чтобы продолжить",
 
       // Вступительная сцена второго этапа
       "stageTwo.intro.1": "Вы ныряете глубже вместе с друзьями...",
@@ -376,6 +377,7 @@
       // Pause
       "pause.title": "Paused",
       "pause.hint": "Press Esc to continue",
+      "pause.hint.touch": "Tap ▐▐ in the corner to continue",
 
       // Stage two intro
       "stageTwo.intro.1": "You dive deeper with your friends...",

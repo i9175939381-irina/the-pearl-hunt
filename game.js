@@ -1600,36 +1600,81 @@ class PickupVfx {
   constructor() {
     /** @type {{ x: number, y: number, text: string, life: number, maxLife: number, vy: number, color: string }[]} */
     this.floats = [];
-    /** @type {{ x: number, y: number, vx: number, vy: number, life: number, r: number, a: number }[]} */
+    /** @type {{ x: number, y: number, vx: number, vy: number, life: number, maxLife: number, r: number, a: number, color: string }[]} */
     this.sparks = [];
+    /** @type {{ x: number, y: number, life: number, maxLife: number, radius: number, color: string }[]} */
+    this.flashes = [];
   }
 
   clear() {
     this.floats.length = 0;
     this.sparks.length = 0;
+    this.flashes.length = 0;
   }
 
+  /**
+   * Сбор обычной жемчужины — «ВАУ»-микровспышка:
+   *  - большая быстро-затухающая радиальная вспышка (бирюза → фиолет → золото);
+   *  - 14 цветных искр разлетаются сферически;
+   *  - плавающая «+1».
+   */
   addPearlBurst(wx, wy) {
     this.floats.push({
       x: wx,
       y: wy,
       text: "+1",
-      life: 0.62,
-      maxLife: 0.62,
-      vy: -52,
+      life: 0.72,
+      maxLife: 0.72,
+      vy: -58,
       color: "#fff7f2",
     });
-    for (let i = 0; i < 9; i++) {
+    // Три последовательные радиальные вспышки разного цвета — создаёт
+    // ощущение короткого «магического взрыва», не перегружая сцену.
+    this.flashes.push({
+      x: wx,
+      y: wy,
+      life: 0.38,
+      maxLife: 0.38,
+      radius: 62,
+      color: "rgba(160, 248, 240, 0.85)",
+    });
+    this.flashes.push({
+      x: wx,
+      y: wy,
+      life: 0.54,
+      maxLife: 0.54,
+      radius: 86,
+      color: "rgba(200, 170, 255, 0.55)",
+    });
+    this.flashes.push({
+      x: wx,
+      y: wy,
+      life: 0.72,
+      maxLife: 0.72,
+      radius: 112,
+      color: "rgba(255, 228, 150, 0.32)",
+    });
+    // Цветные искорки: бирюза, фиолет, золото — перемешаны случайно.
+    const palette = [
+      "rgba(170, 252, 240, 0.95)", // бирюза
+      "rgba(200, 170, 255, 0.95)", // фиолет
+      "rgba(255, 230, 150, 0.95)", // золото
+      "rgba(220, 255, 240, 0.95)", // белёсая жемчужная
+    ];
+    for (let i = 0; i < 14; i++) {
       const a = Math.random() * Math.PI * 2;
-      const sp = 55 + Math.random() * 95;
+      const sp = 65 + Math.random() * 115;
+      const life = 0.5 + Math.random() * 0.22;
       this.sparks.push({
         x: wx,
         y: wy,
         vx: Math.cos(a) * sp,
-        vy: Math.sin(a) * sp - 25,
-        life: 0.38 + Math.random() * 0.12,
-        r: 1.2 + Math.random() * 2.2,
-        a: 0.85,
+        vy: Math.sin(a) * sp - 30,
+        life,
+        maxLife: life,
+        r: 1.4 + Math.random() * 2.6,
+        a: 0.95,
+        color: palette[Math.floor(Math.random() * palette.length)],
       });
     }
   }
@@ -1653,8 +1698,10 @@ class PickupVfx {
         vx: Math.cos(a) * sp,
         vy: Math.sin(a) * sp - 15,
         life: 0.35 + Math.random() * 0.1,
+        maxLife: 0.45,
         r: 1.5 + Math.random() * 2.4,
         a: 0.75,
+        color: "rgba(210, 255, 250, 0.95)",
       });
     }
   }
@@ -1676,6 +1723,11 @@ class PickupVfx {
       s.a = Math.max(0, s.life * 2.2);
     }
     this.sparks = this.sparks.filter((s) => s.life > 0);
+
+    for (const fl of this.flashes) {
+      fl.life -= dt;
+    }
+    this.flashes = this.flashes.filter((fl) => fl.life > 0);
   }
 
   /**
@@ -1683,6 +1735,28 @@ class PickupVfx {
    */
   render(ctx) {
     ctx.save();
+    // Радиальные вспышки — рисуем ДО искр и текста, композитом screen,
+    // чтобы они мягко «подсвечивали» сцену, а не перекрывали её.
+    if (this.flashes.length > 0) {
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      for (const fl of this.flashes) {
+        const u = Math.max(0, fl.life / fl.maxLife);
+        const alpha = Math.sin(Math.PI * u) * 0.95;
+        if (alpha <= 0.01) continue;
+        const r = fl.radius * (1 + (1 - u) * 0.35);
+        const grad = ctx.createRadialGradient(fl.x, fl.y, 0, fl.x, fl.y, r);
+        grad.addColorStop(0, fl.color);
+        grad.addColorStop(0.42, fl.color.replace(/[\d.]+\)$/, "0.22)"));
+        grad.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(fl.x, fl.y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     for (const f of this.floats) {
@@ -1698,7 +1772,7 @@ class PickupVfx {
     ctx.globalAlpha = 1;
     for (const s of this.sparks) {
       ctx.globalAlpha = Math.min(1, s.a);
-      ctx.fillStyle = "rgba(230, 250, 255, 0.95)";
+      ctx.fillStyle = s.color || "rgba(230, 250, 255, 0.95)";
       ctx.beginPath();
       ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
       ctx.fill();
@@ -2140,6 +2214,7 @@ class HUD {
       caveChaseHint = false,
       caveInsideHint = false,
       caveInsideMazeMode = false,
+      modalBackdrop = 0,
     } = info;
     ctx.save();
     // ── Адаптивный масштаб ВЕРХНЕЙ панели HUD. На узких/коротких
@@ -2149,8 +2224,14 @@ class HUD {
     const narrow = Math.min(bounds.width, bounds.height);
     const uiScale =
       narrow < 420 ? 0.7 : narrow < 560 ? 0.8 : narrow < 720 ? 0.9 : 1;
+    // Во время модальных оверлеев (пауза, победа, поражение, меню выбора)
+    // верхняя плашка HUD не должна наползать на центральный текст —
+    // плавно затухаем до ~18 % непрозрачности. Не скрываем полностью:
+    // игроку по-прежнему полезно видеть этап и запас воздуха.
+    const hudAlpha = Math.max(0.18, 1 - Math.min(0.82, modalBackdrop));
     ctx.save();
     if (uiScale !== 1) ctx.scale(uiScale, uiScale);
+    ctx.globalAlpha *= hudAlpha;
     const x = this.margin;
     const y = this.margin;
     const w = 240;
@@ -2431,8 +2512,26 @@ class Renderer {
     ctx.strokeText(t1, width / 2, height / 2 - 12);
     ctx.fillStyle = "#e8fbff";
     ctx.fillText(t1, width / 2, height / 2 - 12);
-    ctx.font = "15px system-ui, sans-serif";
-    const t2 = _t("pause.hint");
+    // На мобильных устройствах у игрока нет клавиатуры — вместо
+    // «Нажмите Esc» показываем, что надо коснуться кнопки паузы в углу.
+    let coarse = false;
+    try {
+      coarse = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+    } catch (_err) {
+      coarse = false;
+    }
+    const hintKey = coarse ? "pause.hint.touch" : "pause.hint";
+    const t2 = _t(hintKey);
+    // Адаптивный шрифт подсказки: на узких экранах уменьшаем, чтобы
+    // строка не упиралась в края. Базово 15 px.
+    let hintSize = 15;
+    ctx.font = `${hintSize}px system-ui, sans-serif`;
+    const maxHintW = width * 0.9;
+    const measuredHint = ctx.measureText(t2).width;
+    if (measuredHint > maxHintW && measuredHint > 1) {
+      hintSize = Math.max(11, Math.floor(hintSize * (maxHintW / measuredHint)));
+      ctx.font = `${hintSize}px system-ui, sans-serif`;
+    }
     ctx.strokeText(t2, width / 2, height / 2 + 18);
     ctx.fillStyle = "rgba(220, 244, 255, 0.95)";
     ctx.fillText(t2, width / 2, height / 2 + 18);
@@ -2497,6 +2596,13 @@ class Game {
 
     /** Плавное затемнение под HTML-оверлеи (поражение, этап, победа) */
     this._modalBackdrop = 0;
+    /** Аура вокруг пловца после подбора жемчужины (сек. до полного угасания) */
+    this._pearlAuraT = 0;
+    this._pearlAuraMax = 0.9;
+    this._pearlAuraX = 0;
+    this._pearlAuraY = 0;
+    /** Лёгкое микро-замедление мира после сбора жемчужины */
+    this._timeDamp = 0;
 
     this.loseUi = domUi?.lose ?? null;
     this.stageUi = domUi?.stageOffer ?? null;
@@ -2680,6 +2786,8 @@ class Game {
     this._shipHuntActive = false;
     this._shipHunt.active = false;
     this.pickupVfx.clear();
+    this._pearlAuraT = 0;
+    this._timeDamp = 0;
     this._oxygenSpawnTimer =
       OXYGEN_SPAWN_INTERVAL_MIN +
       Math.random() * (OXYGEN_SPAWN_INTERVAL_MAX - OXYGEN_SPAWN_INTERVAL_MIN);
@@ -5848,18 +5956,30 @@ class Game {
         ctx.globalAlpha = wa;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.lineWidth = 7;
+        // Адаптивный размер: базово 52 px на широком экране, но если
+        // итоговый текст шире 90 % кадра — уменьшаем шрифт, чтобы
+        // «Ты — победитель!» целиком помещался даже на 360-px мобильнике.
+        const winText = _t("victory.winner");
+        let fontSize = Math.max(22, Math.min(52, Math.round(w * 0.1)));
+        ctx.font = `900 ${fontSize}px system-ui, sans-serif`;
+        const maxTextW = w * 0.9;
+        const measured = ctx.measureText(winText).width;
+        if (measured > maxTextW && measured > 1) {
+          fontSize = Math.max(18, Math.floor(fontSize * (maxTextW / measured)));
+          ctx.font = `900 ${fontSize}px system-ui, sans-serif`;
+        }
+        ctx.lineWidth = Math.max(3, Math.round(fontSize * 0.13));
         ctx.strokeStyle = "rgba(8, 14, 28, 0.86)";
-        ctx.font = "900 52px system-ui, sans-serif";
         ctx.shadowBlur = 24;
         ctx.shadowColor = "rgba(168, 234, 255, 0.65)";
-        ctx.strokeText(_t("victory.winner"), tx, ty);
-        const wg = ctx.createLinearGradient(tx - 210, ty - 24, tx + 210, ty + 24);
+        ctx.strokeText(winText, tx, ty);
+        const halfGrad = Math.max(140, fontSize * 4);
+        const wg = ctx.createLinearGradient(tx - halfGrad, ty - 24, tx + halfGrad, ty + 24);
         wg.addColorStop(0, "rgba(255, 245, 168, 0.98)");
         wg.addColorStop(0.45, "rgba(180, 246, 255, 1)");
         wg.addColorStop(1, "rgba(220, 178, 255, 0.98)");
         ctx.fillStyle = wg;
-        ctx.fillText(_t("victory.winner"), tx, ty);
+        ctx.fillText(winText, tx, ty);
         ctx.restore();
       }
     }
@@ -6259,6 +6379,14 @@ class Game {
           this.audio.playPearlTick();
         }
         this.pickupVfx.addPearlBurst(p.x, p.y);
+        // «ВАУ»-эффект каждого сбора обычной жемчужины:
+        //  - мягкая аура вокруг пловца на ~0.9 с;
+        //  - микро-замедление (~120 мс), чтобы кадр ощущался «магическим».
+        this._pearlAuraT = 0.9;
+        this._pearlAuraX = this.player.x;
+        this._pearlAuraY = this.player.y;
+        this._pearlAuraMax = 0.9;
+        this._timeDamp = Math.max(this._timeDamp || 0, 0.12);
         if (!this._stageOfferTriggered && this.pearlsCollected >= STAGE_PEARL_COUNT) {
           this._stageOfferTriggered = true;
           this._commitBestPearlsScore();
@@ -6641,6 +6769,38 @@ class Game {
     );
   }
 
+  /**
+   * Мягкая световая аура вокруг пловца сразу после подбора жемчужины.
+   * Рисуется ДО фигурки — так свет обнимает пловца, но не засвечивает его.
+   * Плавно плывёт за игроком (следит за его текущими координатами).
+   * @param {CanvasRenderingContext2D} ctx
+   */
+  _renderPearlAura(ctx) {
+    const t = this._pearlAuraT || 0;
+    const tMax = this._pearlAuraMax || 0.9;
+    if (t <= 0 || tMax <= 0) return;
+    const u = Math.max(0, Math.min(1, t / tMax));
+    // Лёгкая sin-огибающая: вспышка быстро раскрывается и мягко гаснет.
+    const env = Math.sin(Math.PI * u);
+    if (env <= 0.01) return;
+    const x = this.player.x;
+    const y = this.player.y;
+    const r = 64 + (1 - u) * 36;
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.globalAlpha = 0.55 * env;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, "rgba(255, 244, 200, 0.85)");
+    g.addColorStop(0.35, "rgba(180, 246, 255, 0.55)");
+    g.addColorStop(0.7, "rgba(200, 170, 255, 0.28)");
+    g.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   /** Общая отрисовка подводного слоя (с лёгким покачиванием) и опционально игрока */
   _renderUnderwaterWorld(ctx, drawPlayer, swimBoost) {
     const boost = !!swimBoost;
@@ -6675,6 +6835,7 @@ class Game {
       if (shipHuntCam) {
         ctx.save();
         ctx.translate(-shipHuntCam.x, -shipHuntCam.y);
+        this._renderPearlAura(ctx);
         this.player.render(
           ctx,
           this.underwater.t,
@@ -6683,6 +6844,7 @@ class Game {
         );
         ctx.restore();
       } else {
+        this._renderPearlAura(ctx);
         this.player.render(
           ctx,
           this.underwater.t,
@@ -7307,6 +7469,7 @@ class Game {
           caveChaseHint: false,
           caveInsideHint: false,
           caveInsideMazeMode: false,
+          modalBackdrop: this._modalBackdrop || 0,
         });
       }
       return;
@@ -7354,6 +7517,7 @@ class Game {
         caveChaseHint: false,
         caveInsideHint: true,
         caveInsideMazeMode: true,
+        modalBackdrop: this._modalBackdrop || 0,
       });
       if (this.state === GameState.PAUSED) {
         this.renderer.drawPauseOverlay();
@@ -7458,6 +7622,7 @@ class Game {
         caveChaseHint: this.state === GameState.CAVE_CHASE,
         caveInsideHint: false,
         caveInsideMazeMode: false,
+        modalBackdrop: this._modalBackdrop || 0,
       });
     }
 
@@ -7469,7 +7634,21 @@ class Game {
   _loop(ts) {
     const last = this._lastTs || ts;
     this._lastTs = ts;
-    const dt = Math.min(0.05, (ts - last) / 1000);
+    const realDt = Math.min(0.05, (ts - last) / 1000);
+    // Тики «магического» замедления и ауры в РЕАЛЬНОМ времени —
+    // чтобы эффект длился ровно столько, сколько задано, независимо
+    // от того, с какой скоростью идёт мировой dt.
+    if (this._timeDamp > 0) {
+      this._timeDamp = Math.max(0, this._timeDamp - realDt);
+    }
+    if (this._pearlAuraT > 0) {
+      this._pearlAuraT = Math.max(0, this._pearlAuraT - realDt);
+    }
+    // Плавное микро-замедление сцены при подборе жемчужины (до ~30 %).
+    const dampFactor = this._timeDamp > 0
+      ? Math.max(0.7, 1 - Math.min(0.3, this._timeDamp * 2.2))
+      : 1;
+    const dt = realDt * dampFactor;
     this.update(dt);
     this.render();
     requestAnimationFrame(this._loop);
