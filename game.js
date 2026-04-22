@@ -3570,14 +3570,16 @@ class Game {
       : Math.PI + (Math.random() - 0.5) * 0.08;
     const dx = Math.cos(ang);
     const dy = Math.sin(ang);
-    // Сцена охоты работает как классический скроллер:
-    //   • пловец — визуальный «якорь» кадра, он стоит в центре экрана;
-    //   • камера следит за worldProg (см. _renderShipHuntLayer), поэтому всё
-    //     окружение — дно, обломки, водоросли, галочка, жемчужина —
-    //     плавно уплывает мимо пловца в противоположную сторону.
-    // Поэтому ставим пловца ровно в центр canvas — это же и точка ax/ay,
-    // относительно которой задаются мировые координаты охоты.
-    this.player.x = b.width * 0.5;
+    // Сцена охоты за жемчужиной проходит в пределах одного кадра:
+    //   • пловец свободно двигается по canvas в любом направлении;
+    //   • жемчужина и декор размещены в видимой области;
+    //   • камера статична (см. _shipHuntCamera), пловец реально
+    //     доплывает до жемчужины, а не бьётся о невидимые стены
+    //     скроллера.
+    // Стартовая точка — середина экрана по горизонтали, чтобы до цели
+    // был разумный ход в направлении dirX (вправо или влево).
+    const startXFrac = dirBase > 0 ? 0.3 : 0.7;
+    this.player.x = b.width * startXFrac;
     this.player.y = Math.max(
       b.height * 0.42,
       Math.min(b.height * 0.62, this.player.y)
@@ -3587,34 +3589,31 @@ class Game {
     this._shipHunt.ay = this.player.y;
     this._shipHunt.dirX = dx;
     this._shipHunt.dirY = dy;
-    // Математика досягаемости финальной жемчужины. Пловец ограничен
-    // канвасом: максимум по X — (w/2 - halfW), по Y — (h/2 - halfH).
-    // Плюс радиус подбора 84 px (PICKUP_R), т.е. жемчужина может быть
-    // даже на ~80 px ЗА краем канваса, и игрок всё равно её достанет,
-    // прислонившись к стенке. Берём с запасом ~PICKUP_R * 0.6 = 50.
-    const PICKUP_R = 84;
-    const reachMarginX = PICKUP_R * 0.6;
-    const reachMarginY = PICKUP_R * 0.6;
+    // Досягаемость: жемчужина должна быть строго В ПРЕДЕЛАХ видимой
+    // области, чтобы пловец гарантированно до неё доплыл обычным
+    // движением, без опоры о стенку канваса. Используем расстояние
+    // от стартовой точки (ax) до дальнего края canvas с запасом.
     const halfW = this.player.halfW;
     const halfH = this.player.halfH;
-    const maxReachX = Math.abs(dx) > 0.05
-      ? (b.width * 0.5 - halfW + reachMarginX) / Math.abs(dx)
+    const PICKUP_R = 84;
+    const edgeBuffer = Math.max(24, PICKUP_R * 0.35);
+    const reachX = Math.abs(dx) > 0.05
+      ? (dx > 0
+          ? (b.width - halfW - edgeBuffer) - this._shipHunt.ax
+          : this._shipHunt.ax - (halfW + edgeBuffer)) / Math.abs(dx)
       : Infinity;
-    const maxReachY = Math.abs(dy) > 0.05
-      ? (b.height * 0.5 - halfH + reachMarginY) / Math.abs(dy)
+    const reachY = Math.abs(dy) > 0.05
+      ? (dy > 0
+          ? (b.height - halfH - edgeBuffer) - this._shipHunt.ay
+          : this._shipHunt.ay - (halfH + edgeBuffer)) / Math.abs(dy)
       : Infinity;
-    // safeProj — максимальный проект, при котором жемчужина ещё достижима.
-    // На узких экранах может получиться меньше 220 — раньше жёсткий
-    // минимум 220 буквально ставил жемчужину за пределами зоны подбора
-    // и создавал ощущение «стены». Не ставим искусственный пол: пусть
-    // на мобильнике финал будет короче, но гарантированно проходим.
-    const safeProj = Math.max(80, Math.min(maxReachX, maxReachY));
-    // Берём не более 85 % от безопасной зоны (запас на мелкий дрифт
-    // и вертикальный компонент). И верхний предел ~520 — чтобы на
-    // огромном мониторе жемчужина не ехала через пол-экрана.
-    const cap = Math.min(safeProj * 0.85, 520);
-    const floor = Math.min(safeProj * 0.6, 220);
-    const desiredProj = cap * (0.78 + Math.random() * 0.18);
+    const safeProj = Math.max(80, Math.min(reachX, reachY));
+    // 75 % от безопасной зоны — жемчужина всегда внутри, с запасом на
+    // вертикальный и боковой дрифт. Верхний предел 420 — чтобы на
+    // широком мониторе жемчужина не ехала через весь экран.
+    const cap = Math.min(safeProj * 0.75, 420);
+    const floor = Math.min(safeProj * 0.45, 160);
+    const desiredProj = cap * (0.68 + Math.random() * 0.22);
     this._shipHunt.pearlProj = Math.max(floor, Math.min(desiredProj, cap));
     this._shipHunt.pearlProjHome = this._shipHunt.pearlProj;
     this._shipHunt.laneHalfW = 135 + Math.random() * 24;
@@ -3708,18 +3707,15 @@ class Game {
   }
 
   /**
-   * Камера охоты за жемчужиной. Пловец «якорится» в центре экрана, а мир (дно,
-   * обломки, водоросли, жемчужина) скроллится мимо по траектории dirX/dirY
-   * пропорционально пройденному пути. Используется и для рендера декораций
-   * слоя охоты, и для сдвига пловца/дельфина, чтобы они зрительно совпадали
-   * с миром и жемчужиной.
+   * Камера охоты за жемчужиной. В текущей версии сцена помещается в один
+   * кадр: пловец сам двигается по экрану к тайнику, поэтому смещение камеры
+   * равно нулю — иначе возникало ощущение «невидимых стен» по краям canvas,
+   * когда мир скроллился, а персонаж оставался в центре (на мобильнике
+   * особенно заметно). Для декора мы по-прежнему используем «мировые»
+   * координаты, они просто отрисовываются как есть.
    */
   _shipHuntCamera() {
-    const sh = this._shipHunt;
-    return {
-      x: sh.worldProg * sh.dirX,
-      y: sh.worldProg * sh.dirY,
-    };
+    return { x: 0, y: 0 };
   }
 
   /** Сейчас играет короткая ложная вспышка (обманный огонь). */
@@ -6239,11 +6235,18 @@ class Game {
     const px = this.player.x;
     const py = this.player.y;
     const isShipHunt = this.state === GameState.SHIP_HUNT;
-    const targetPearls =
+    // «Бонусная победа по жемчужинам» работает ТОЛЬКО после пещеры,
+    // когда игрок явно выбрал «Собрать ещё жемчужин» — тогда мы
+    // устанавливаем _postCaveCollectTarget. Без этого финал должен
+    // идти через сцену поиска чёрной жемчужины (SHIP_HUNT), иначе
+    // игрок, собрав 15 штук до акул, получал сразу «Ты победитель»
+    // и пропускал акул, пещеру и финал целиком.
+    const hasBonusTarget =
       this._postCaveCollectTarget !== null &&
-      this._postCaveCollectTarget !== undefined
-        ? this._postCaveCollectTarget
-        : BONUS_WIN_PEARL_COUNT;
+      this._postCaveCollectTarget !== undefined;
+    const targetPearls = hasBonusTarget
+      ? this._postCaveCollectTarget
+      : BONUS_WIN_PEARL_COUNT;
 
     for (const p of this.pearls) {
       if (!p.active) continue;
@@ -6269,9 +6272,10 @@ class Game {
           return;
         }
         if (
+          hasBonusTarget &&
           this._continuedAfterStage &&
           this.pearlsCollected >= targetPearls &&
-          (this.state === GameState.PLAYING || this.state === GameState.STAGE_TWO)
+          this.state === GameState.STAGE_TWO
         ) {
           this._commitBestPearlsScore();
           if (this.winUi) {
