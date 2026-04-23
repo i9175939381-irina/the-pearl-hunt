@@ -2549,7 +2549,7 @@ class Game {
    * @param {HTMLCanvasElement} canvas
    * @param {HTMLElement} startOverlay
    * @param {{
-   *   lose: { el: HTMLElement, pearlsSpan: HTMLElement, bestSpan?: HTMLElement, btn: HTMLButtonElement } | null,
+   *   lose: { el: HTMLElement, pearlsSpan: HTMLElement, bestSpan: HTMLElement, btn: HTMLButtonElement } | null,
    *   stageOffer: { el: HTMLElement, btnContinue: HTMLButtonElement, btnNext: HTMLButtonElement } | null,
    *   win: { el: HTMLElement, pearlsSpan: HTMLElement, titleEl?: HTMLElement, lineEl?: HTMLElement, btnMenu: HTMLButtonElement, btnAgain: HTMLButtonElement } | null,
    *   nextStage: { el: HTMLElement, btnBack: HTMLButtonElement } | null,
@@ -7701,8 +7701,8 @@ function main() {
 
   const domUi = {
     lose:
-      loseEl && losePearls && btnLoseRetry
-        ? { el: loseEl, pearlsSpan: losePearls, bestSpan: loseBest || undefined, btn: btnLoseRetry }
+      loseEl && losePearls && loseBest && btnLoseRetry
+        ? { el: loseEl, pearlsSpan: losePearls, bestSpan: loseBest, btn: btnLoseRetry }
         : null,
     stageOffer:
       stageEl && btnStageNext && btnStageContinue
